@@ -4,10 +4,17 @@ import { db } from "../db.js";
 
 const router = Router();
 
-// Nur Events, die ausschliesslich im Client bekannt sind (Interaktionen).
-// test_created und owner_page_opened werden serverseitig geloggt, damit sie
-// nicht durch beliebige Client-Aufrufe faelschbar sind.
-const CLIENT_EVENT_TYPES = new Set(["share_clicked", "copy_link_clicked"]);
+// Nur Events, die ausschliesslich im Client bekannt sind (reine UI-Momente).
+// test_created, test_opened, test_started, attempt_completed und
+// child_test_created werden serverseitig an der jeweiligen Aktion geloggt,
+// damit sie nicht durch beliebige Client-Aufrufe faelschbar sind.
+const CLIENT_EVENT_TYPES = new Set([
+  "share_clicked",
+  "copy_link_clicked",
+  "result_viewed",
+  "result_shared",
+  "viral_cta_clicked",
+]);
 
 const eventsLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,

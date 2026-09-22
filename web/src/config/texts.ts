@@ -57,7 +57,7 @@ export const notFoundTexts = {
 };
 
 // ==================================================================
-// RESERVIERT FUER PHASE 3 - noch von keiner Route/Komponente verwendet.
+// EMPFAENGER-/SPIEL-FLOW (Phase 3): /t/:publicToken
 //
 // Emotionaler Kern von REAL ONES (verbindlich festgelegt): nicht "Wie gut
 // kennst du mich?", sondern "Wer gehoert wirklich zu meinen engsten
@@ -80,6 +80,44 @@ export const recipientTexts = {
   cta: "FIND'S RAUS",
   footnote: "5 Fragen · dauert weniger als 1 Minute",
 };
+
+export const playerNameTexts = {
+  headline: "Wie heißt du?",
+  placeholder: "Dein Name",
+  cta: "LOS GEHT'S",
+};
+
+// Score (0-5) -> Ergebnis-Copy. Haelt sich an die semantische Grenze oben:
+// misst Wissen ueber die Person, nie objektive Freundschaftsqualitaet.
+const RESULT_BY_SCORE: { percentLabel: string; message: (creatorName: string) => string }[] = [
+  { percentLabel: "0 %", message: () => "Okay... das war interessant. 😂" },
+  { percentLabel: "20 % REAL ONE", message: () => "Ihr solltet wohl mal wieder reden 😄" },
+  { percentLabel: "40 % REAL ONE", message: () => "Da sind noch ein paar Geheimnisse offen 👀" },
+  { percentLabel: "60 % REAL ONE", message: () => "Nicht schlecht – aber da geht noch was." },
+  {
+    percentLabel: "80 % REAL ONE 🔥",
+    message: (creatorName) => `Okay, du kennst ${creatorName} ziemlich gut.`,
+  },
+  {
+    percentLabel: "100 % REAL ONE 🔥",
+    message: (creatorName) => `Du kennst ${creatorName} verdammt gut.`,
+  },
+];
+
+export const resultTexts = {
+  byScore(score: number, creatorName: string): { percentLabel: string; message: string } {
+    const entry = RESULT_BY_SCORE[score] ?? RESULT_BY_SCORE[0];
+    return { percentLabel: entry.percentLabel, message: entry.message(creatorName) };
+  },
+  rankLabel: (rank: number, total: number) => `Platz ${rank} von ${total}`,
+  shareCta: "Ergebnis teilen",
+};
+
+// Nachricht OHNE Link (gleiches Prinzip wie buildShareMessage): der Link
+// zurueck zu Test A wird separat angehaengt.
+export function buildResultShareMessage(percentLabel: string, creatorName: string): string {
+  return `${percentLabel}\n\nIch dachte, ich kenne ${creatorName} besser 👀\n\nSchaffst du mehr?`;
+}
 
 // CTA direkt nach dem eigenen Ergebnis, der den Empfaenger zum Ersteller
 // seines eigenen Tests macht (parent_test_id = Test des Herausforderers).

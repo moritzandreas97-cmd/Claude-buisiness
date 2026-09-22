@@ -107,6 +107,11 @@ router.post("/", createTestLimiter, (req, res) => {
         insertTestQuestion.run(testId, answer.questionId, answer.correctOption, index + 1);
       });
       insertEvent.run(testId, "test_created", parentTestId);
+      if (parentTestId !== null) {
+        // Auf dem Eltern-Test geloggt, damit sich die Creator-Conversion
+        // (Abschnitt 12) direkt pro Test auswerten laesst.
+        insertEvent.run(parentTestId, "child_test_created", testId);
+      }
       return testId;
     }
   );
@@ -156,6 +161,174 @@ router.get("/owner/:ownerToken", (req, res) => {
     creatorName: test.creator_name,
     createdAt: test.created_at,
     participantCount: count,
+  });
+});
+
+// --- Empfaenger-/Spiel-Flow (Phase 3) --------------------------------------
+
+interface PlayAnswerInput {
+  questionId: number;
+  selectedOption: string;
+}
+
+function parsePlayAnswers(input: unknown, expectedCount: number): PlayAnswerInput[] | null {
+  if (!Array.isArray(input) || input.length !== expectedCount) return null;
+
+  const seen = new Set<number>();
+  const parsed: PlayAnswerInput[] = [];
+  for (const entry of input) {
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      typeof (entry as { questionId?: unknown }).questionId !== "number" ||
+      typeof (entry as { selectedOption?: unknown }).selectedOption !== "string"
+    ) {
+      return null;
+    }
+    const questionId = (entry as { questionId: number }).questionId;
+    const selectedOption = (entry as { selectedOption: string }).selectedOption.toLowerCase();
+    if (!VALID_OPTIONS.has(selectedOption)) return null;
+    if (seen.has(questionId)) return null;
+    seen.add(questionId);
+    parsed.push({ questionId, selectedOption });
+  }
+  return parsed;
+}
+
+function findTestByPublicToken(publicToken: string) {
+  return db
+    .prepare("SELECT id, creator_name FROM tests WHERE public_token = ?")
+    .get(publicToken) as { id: number; creator_name: string } | undefined;
+}
+
+// Landingpage-Daten fuer den Empfaenger eines geteilten Links. Enthaelt
+// bewusst keine Fragen/Antworten - die werden erst nach "FIND'S RAUS"
+// geladen (Abschnitt 1).
+router.get("/:publicToken", (req, res) => {
+  const test = findTestByPublicToken(req.params.publicToken);
+  if (!test) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  db.prepare("INSERT INTO events (test_id, event_type) VALUES (?, ?)").run(test.id, "test_opened");
+
+  res.json({ creatorName: test.creator_name });
+});
+
+// Die 5 Fragen dieses konkreten Tests, in der vom Ersteller festgelegten
+// Reihenfolge, OHNE correct_option - die richtige Antwort darf den Client
+// vor der Auswertung nie erreichen (Abschnitt 4).
+router.get("/:publicToken/questions", (req, res) => {
+  const test = findTestByPublicToken(req.params.publicToken);
+  if (!test) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT q.id, q.text, q.option_a, q.option_b, q.option_c, q.option_d
+       FROM test_questions tq
+       JOIN questions q ON q.id = tq.question_id
+       WHERE tq.test_id = ?
+       ORDER BY tq.position ASC`
+    )
+    .all(test.id) as {
+    id: number;
+    text: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+  }[];
+
+  db.prepare("INSERT INTO events (test_id, event_type) VALUES (?, ?)").run(test.id, "test_started");
+
+  res.json({
+    questions: rows.map((row) => ({
+      id: row.id,
+      text: row.text,
+      options: { a: row.option_a, b: row.option_b, c: row.option_c, d: row.option_d },
+    })),
+  });
+});
+
+const submitAttemptLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Serverseitige Auswertung: der Client sendet nur seine Antworten, der Score
+// wird ausschliesslich hier berechnet (Abschnitt 4). Antworten werden gegen
+// die tatsaechliche Fragenmenge DIESES Tests validiert - unbekannte/fremde
+// question_ids fuehren zu 400, keine stille Uebernahme.
+router.post("/:publicToken/attempts", submitAttemptLimiter, (req, res) => {
+  const test = findTestByPublicToken(req.params.publicToken);
+  if (!test) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  const body = req.body as { participantName?: unknown; answers?: unknown };
+
+  const participantName = sanitizeName(body.participantName);
+  if (!participantName) {
+    return res.status(400).json({ error: "invalid_participant_name" });
+  }
+
+  const correctRows = db
+    .prepare("SELECT question_id, correct_option FROM test_questions WHERE test_id = ?")
+    .all(test.id) as { question_id: number; correct_option: string }[];
+  const correctByQuestion = new Map(correctRows.map((r) => [r.question_id, r.correct_option]));
+
+  const answers = parsePlayAnswers(body.answers, correctByQuestion.size);
+  if (!answers) {
+    return res.status(400).json({ error: "invalid_answers" });
+  }
+  for (const answer of answers) {
+    if (!correctByQuestion.has(answer.questionId)) {
+      return res.status(400).json({ error: "unknown_question" });
+    }
+  }
+
+  let score = 0;
+  for (const answer of answers) {
+    if (correctByQuestion.get(answer.questionId) === answer.selectedOption) score++;
+  }
+
+  const insertAttempt = db.prepare(
+    "INSERT INTO attempts (test_id, participant_name, score) VALUES (?, ?, ?)"
+  );
+  const insertEvent = db.prepare("INSERT INTO events (test_id, event_type) VALUES (?, ?)");
+
+  const attemptId = db.transaction((): number => {
+    const result = insertAttempt.run(test.id, participantName, score);
+    insertEvent.run(test.id, "attempt_completed");
+    return result.lastInsertRowid as number;
+  })();
+
+  // Ranking: Score absteigend, bei Gleichstand fruehere Teilnahme zuerst
+  // (Abschnitt 6). `id ASC` macht die Reihenfolge bei identischem
+  // created_at (gleiche Sekunde) deterministisch.
+  const ranked = db
+    .prepare(
+      "SELECT id, participant_name, score FROM attempts WHERE test_id = ? ORDER BY score DESC, created_at ASC, id ASC"
+    )
+    .all(test.id) as { id: number; participant_name: string; score: number }[];
+
+  const rank = ranked.findIndex((a) => a.id === attemptId) + 1;
+
+  res.status(201).json({
+    score,
+    percent: score * 20,
+    rank,
+    totalParticipants: ranked.length,
+    top: ranked.slice(0, 3).map((a) => ({
+      name: a.participant_name,
+      score: a.score,
+      percent: a.score * 20,
+    })),
+    creatorName: test.creator_name,
   });
 });
 

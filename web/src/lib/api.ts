@@ -21,9 +21,38 @@ export interface OwnerTestResponse {
   participantCount: number;
 }
 
-export type ClientEventType = "share_clicked" | "copy_link_clicked";
+export interface TestSummaryResponse {
+  creatorName: string;
+}
 
-class ApiError extends Error {
+export interface PlayAnswer {
+  questionId: number;
+  selectedOption: "a" | "b" | "c" | "d";
+}
+
+export interface RankedParticipant {
+  name: string;
+  score: number;
+  percent: number;
+}
+
+export interface AttemptResult {
+  score: number;
+  percent: number;
+  rank: number;
+  totalParticipants: number;
+  top: RankedParticipant[];
+  creatorName: string;
+}
+
+export type ClientEventType =
+  | "share_clicked"
+  | "copy_link_clicked"
+  | "result_viewed"
+  | "result_shared"
+  | "viral_cta_clicked";
+
+export class ApiError extends Error {
   status: number;
   code: string;
 
@@ -64,6 +93,25 @@ export function createTest(
 
 export function fetchOwnerTest(ownerToken: string): Promise<OwnerTestResponse> {
   return request(`/api/tests/owner/${encodeURIComponent(ownerToken)}`);
+}
+
+export function fetchTestSummary(publicToken: string): Promise<TestSummaryResponse> {
+  return request(`/api/tests/${encodeURIComponent(publicToken)}`);
+}
+
+export function fetchPlayQuestions(publicToken: string): Promise<{ questions: ApiQuestion[] }> {
+  return request(`/api/tests/${encodeURIComponent(publicToken)}/questions`);
+}
+
+export function submitAttempt(
+  publicToken: string,
+  participantName: string,
+  answers: PlayAnswer[]
+): Promise<AttemptResult> {
+  return request(`/api/tests/${encodeURIComponent(publicToken)}/attempts`, {
+    method: "POST",
+    body: JSON.stringify({ participantName, answers }),
+  });
 }
 
 export function trackEvent(type: ClientEventType, publicToken: string): void {
