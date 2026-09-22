@@ -110,7 +110,7 @@ export const resultTexts = {
     return { percentLabel: entry.percentLabel, message: entry.message(creatorName) };
   },
   rankLabel: (rank: number, total: number) => `Platz ${rank} von ${total}`,
-  shareCta: "Ergebnis teilen",
+  shareCta: "ERGEBNIS TEILEN",
 };
 
 // Nachricht OHNE Link (gleiches Prinzip wie buildShareMessage): der Link
