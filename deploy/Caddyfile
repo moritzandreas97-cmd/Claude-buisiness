@@ -1,0 +1,3 @@
+DOMAIN_PLACEHOLDER {
+	reverse_proxy localhost:3000
+}

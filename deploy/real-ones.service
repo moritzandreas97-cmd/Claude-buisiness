@@ -1,0 +1,26 @@
+[Unit]
+Description=REAL ONES
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/real-ones/server
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=2
+Environment=PORT=3000
+Environment=TRUST_PROXY=1
+Environment=PUBLIC_BASE_URL=https://DOMAIN_PLACEHOLDER
+Environment=CORS_ORIGIN=https://DOMAIN_PLACEHOLDER
+User=real-ones
+# Haertung - keine echten Requirements, aber kostenlos und Standardpraxis
+# fuer einen Node-Prozess ohne Root-Bedarf. server/data ist im Runbook ein
+# Symlink auf /var/lib/real-ones/data - ReadWritePaths muss das reale Ziel
+# nennen, ProtectSystem=strict macht sonst auch den Symlink-Ziel-Pfad
+# read-only.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/real-ones/data
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

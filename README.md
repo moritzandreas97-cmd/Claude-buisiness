@@ -114,57 +114,13 @@ Zeigt Trichter-Zahlen (Tests erstellt, Opens, Starts, Completions, Shares,
 virale Kette) und daraus abgeleitete Conversion-Raten (Division durch 0
 wird sauber als „–" behandelt statt NaN/Infinity).
 
-## Referenz-Deployment (Beispiele, nichts hiervon ist angewendet)
+## Deployment
 
-Zielarchitektur: `Internet → HTTPS/Domain → Reverse Proxy → dieser eine
-Node-Prozess (Port 3000) → SQLite-Datei`. Kein Docker/Kubernetes nötig.
-
-**systemd-Unit** (`/etc/systemd/system/real-ones.service`, Beispiel):
-
-```ini
-[Unit]
-Description=REAL ONES
-After=network.target
-
-[Service]
-WorkingDirectory=/pfad/zu/real-ones/server
-ExecStart=/usr/bin/node dist/index.js
-Restart=on-failure
-Environment=PORT=3000
-Environment=TRUST_PROXY=1
-Environment=PUBLIC_BASE_URL=https://echte-domain.example
-Environment=CORS_ORIGIN=https://echte-domain.example
-User=www-data
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Caddy** (`Caddyfile`, Beispiel — HTTPS/Zertifikat automatisch):
-
-```
-echte-domain.example {
-  reverse_proxy localhost:3000
-}
-```
-
-**nginx** (Beispiel, TLS-Zertifikat z. B. via certbot separat einrichten):
-
-```nginx
-server {
-  listen 443 ssl;
-  server_name echte-domain.example;
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-}
-```
-
-Diese Beispiele sind reine Vorlagen zur Orientierung — noch nicht auf
-irgendein System angewendet.
+Vollständiges Runbook (Server-Bootstrap, systemd, Caddy, DNS, GitHub-Actions-
+Auto-Deploy): siehe **[`DEPLOY.md`](./DEPLOY.md)**. Die referenzierten
+Konfigurationsdateien liegen unter `deploy/` (`real-ones.service`,
+`Caddyfile`) — noch nicht auf irgendein System angewendet, `DOMAIN_PLACEHOLDER`
+muss vor Gebrauch ersetzt werden.
 
 ## Testdaten nach dem Produktions-E2E-Test entfernen
 

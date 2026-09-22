@@ -1,0 +1,33 @@
+name: Deploy
+
+# Setzt einen einmalig manuell eingerichteten Server voraus (siehe DEPLOY.md).
+# Deployed erst, sobald auf main gepusht wird - vorher greift dieser
+# Trigger nicht (es gibt aktuell noch keinen main-Branch/keine Merges dorthin).
+"on":
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH-Key einrichten
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy per SSH (git pull + build + Neustart)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
+            set -euo pipefail
+            cd /opt/real-ones
+            git fetch origin
+            git reset --hard origin/main
+            npm install
+            npm run build -w web
+            npm run build -w server
+            sudo systemctl restart real-ones
+          '
