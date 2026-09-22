@@ -1,25 +1,18 @@
-import { useEffect, useState } from 'react'
-
-type HealthStatus = 'checking' | 'ok' | 'error'
+import { Route, Routes } from "react-router-dom";
+import CreateFlow from "./pages/CreateFlow";
+import HomePage from "./pages/HomePage";
+import NotFoundPage from "./pages/NotFoundPage";
+import OwnerPage from "./pages/OwnerPage";
 
 function App() {
-  const [status, setStatus] = useState<HealthStatus>('checking')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => (res.ok ? setStatus('ok') : setStatus('error')))
-      .catch(() => setStatus('error'))
-  }, [])
-
   return (
-    <main className="scaffold">
-      <h1>REAL ONES</h1>
-      <p>Projektgerüst steht.</p>
-      <p className="status" data-status={status}>
-        API: {status}
-      </p>
-    </main>
-  )
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/create" element={<CreateFlow />} />
+      <Route path="/my/:ownerToken" element={<OwnerPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
 }
 
-export default App
+export default App;
