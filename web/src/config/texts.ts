@@ -7,9 +7,9 @@ export const brand = {
 
 export const homeTexts = {
   emoji: "👀",
-  headline: "Wer kennt dich wirklich?",
+  headline: "Wer sind deine echten Freunde?",
   subheadline:
-    "Beantworte ein paar Fragen. Schick den Test an deine Freunde. Finde heraus, wer dich wirklich kennt.",
+    "Finde heraus, wer wirklich zu dir gehört. Beantworte ein paar Fragen und schick den Test an deine Freunde.",
   cta: "Test erstellen",
   footnote: "Dauert weniger als 1 Minute. Keine Anmeldung.",
 };
