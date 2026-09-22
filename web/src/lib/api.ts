@@ -95,6 +95,10 @@ export function fetchOwnerTest(ownerToken: string): Promise<OwnerTestResponse> {
   return request(`/api/tests/owner/${encodeURIComponent(ownerToken)}`);
 }
 
+export function deleteOwnedTest(ownerToken: string): Promise<void> {
+  return request(`/api/tests/owner/${encodeURIComponent(ownerToken)}`, { method: "DELETE" });
+}
+
 export function fetchTestSummary(publicToken: string): Promise<TestSummaryResponse> {
   return request(`/api/tests/${encodeURIComponent(publicToken)}`);
 }

@@ -68,6 +68,40 @@ Verzeichnis muss im Deployment auf persistentem Storage liegen (nicht auf
 einem ephemeren Dateisystem) und darf nicht von mehreren Prozessinstanzen
 gleichzeitig beschrieben werden (Single-Node-SQLite, kein Cluster-Setup).
 
+`server/data/*.sqlite*` ist in `.gitignore` — `npm install`, `npm run build`
+und `git pull` fassen dieses Verzeichnis nie an. Ein Prozess-Neustart öffnet
+dieselbe Datei erneut, nichts geht verloren. Einziges echtes Risiko: ein
+Deployment-Skript, das `server/data/` versehentlich löscht oder der
+Projektordner insgesamt neu ausgecheckt statt aktualisiert wird — deshalb
+sollte `server/data/` im Zweifel außerhalb des Git-Arbeitsverzeichnisses
+liegen (z. B. per Symlink), wenn das Deployment per `git pull` erfolgt.
+
+### Backup
+
+```
+server/src/scripts/backup.sh                  # -> server/backups/realones-<timestamp>.sqlite
+server/src/scripts/backup.sh /anderer/pfad     # eigenes Zielverzeichnis
+```
+
+Nutzt `sqlite3 .backup` (konsistent, auch während der Server läuft) und
+fällt auf ein einfaches `cp` zurück, falls die `sqlite3`-CLI fehlt. Behält
+automatisch nur die letzten 14 Backups. `server/backups/` ist gitignored.
+
+**Wiederherstellen:** Server stoppen, die gewünschte Backup-Datei nach
+`server/data/realones.sqlite` kopieren (inkl. Löschen evtl. vorhandener
+`-wal`/`-shm`-Dateien daneben), Server neu starten.
+
+### Test löschen
+
+Auf der Owner-Seite (`/my/:ownerToken`) kann der Ersteller seinen Test
+löschen (kleiner, nicht prominenter Link unten, mit Bestätigungsschritt).
+Autorisiert wird ausschließlich über den langen `owner_token` — der kurze
+`public_token`, den jeder Freund hat, reicht dafür nie (`DELETE
+/api/tests/owner/:ownerToken`). Gelöscht werden Test, seine Fragen-Relation,
+Attempts und testbezogene Events. Tests, die aus diesem Test heraus erstellt
+wurden (`parent_test_id`), bleiben erhalten und verlieren nur die Referenz
+auf den gelöschten Eltern-Test.
+
 ## Interne Statistik
 
 Kein Dashboard, sondern ein CLI-Skript gegen dieselbe DB:
@@ -80,6 +114,71 @@ Zeigt Trichter-Zahlen (Tests erstellt, Opens, Starts, Completions, Shares,
 virale Kette) und daraus abgeleitete Conversion-Raten (Division durch 0
 wird sauber als „–" behandelt statt NaN/Infinity).
 
+## Referenz-Deployment (Beispiele, nichts hiervon ist angewendet)
+
+Zielarchitektur: `Internet → HTTPS/Domain → Reverse Proxy → dieser eine
+Node-Prozess (Port 3000) → SQLite-Datei`. Kein Docker/Kubernetes nötig.
+
+**systemd-Unit** (`/etc/systemd/system/real-ones.service`, Beispiel):
+
+```ini
+[Unit]
+Description=REAL ONES
+After=network.target
+
+[Service]
+WorkingDirectory=/pfad/zu/real-ones/server
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+Environment=PORT=3000
+Environment=TRUST_PROXY=1
+Environment=PUBLIC_BASE_URL=https://echte-domain.example
+Environment=CORS_ORIGIN=https://echte-domain.example
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Caddy** (`Caddyfile`, Beispiel — HTTPS/Zertifikat automatisch):
+
+```
+echte-domain.example {
+  reverse_proxy localhost:3000
+}
+```
+
+**nginx** (Beispiel, TLS-Zertifikat z. B. via certbot separat einrichten):
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name echte-domain.example;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+```
+
+Diese Beispiele sind reine Vorlagen zur Orientierung — noch nicht auf
+irgendein System angewendet.
+
+## Testdaten nach dem Produktions-E2E-Test entfernen
+
+Vor der echten Beta-Öffnung sollte die Analytik sauber bei 0 starten. Zwei
+Optionen, je nachdem wie gründlich:
+
+1. **Gezielt** — jeden im finalen E2E-Test erzeugten Test einzeln über die
+   Owner-Seite löschen (siehe „Test löschen" oben). Sauber, aber nur
+   praktikabel bei wenigen Test-Tests.
+2. **Kompletter Reset** — Server stoppen, `server/data/realones.sqlite*`
+   löschen, Server neu starten (Schema + Fragenpool werden automatisch neu
+   angelegt, siehe `seed.ts`). Einfachster Weg zu exakt sauberen Zahlen für
+   den echten Beta-Start.
+
 ## Rechtliches (Platzhalter)
 
 `/datenschutz` und `/impressum` enthalten aktuell **Platzhalter-Angaben**.
@@ -89,7 +188,10 @@ Vor einem öffentlichen Launch müssen echte Betreiberdaten eingetragen werden
 
 ## Status
 
-Phasen 1–3.5 abgeschlossen: kompletter viraler Loop (Test erstellen → Link
-teilen → spielen → Ergebnis → eigenen Test erstellen), Social-Preview-Meta,
-minimale interne Funnel-Statistik, Produktions-Serving in einem Prozess.
-Future Me / Social Mirror / Accounts bewusst noch nicht gebaut.
+Phasen 1–3.6 (Anwendungsseite) abgeschlossen: kompletter viraler Loop (Test
+erstellen → Link teilen → spielen → Ergebnis → eigenen Test erstellen),
+Social-Preview-Meta, minimale interne Funnel-Statistik, Produktions-Serving
+in einem Prozess, Test-Löschung, Backup-Skript. **Noch nicht deployed** —
+Domain, echter Server-Zugriff und Betreiberangaben stehen noch aus (siehe
+Bericht der aktuellen Phase). Future Me / Social Mirror / Accounts bewusst
+noch nicht gebaut.

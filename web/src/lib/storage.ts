@@ -28,3 +28,12 @@ export function loadOwnedTests(): StoredTest[] {
     return [];
   }
 }
+
+export function removeOwnedTest(ownerToken: string): void {
+  try {
+    const next = loadOwnedTests().filter((t) => t.ownerToken !== ownerToken);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // s.o.
+  }
+}

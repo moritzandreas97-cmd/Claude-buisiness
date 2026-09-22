@@ -164,6 +164,39 @@ router.get("/owner/:ownerToken", (req, res) => {
   });
 });
 
+const deleteTestLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Loeschen erfordert den LANGEN owner_token - der kurze public_token (den
+// jeder Freund hat) darf dafuer niemals reichen (Abschnitt 8, Phase 3.6).
+// test_questions/attempts haengen per ON DELETE CASCADE am Test (db.ts),
+// Kind-Tests behalten per ON DELETE SET NULL ihre eigene Existenz und
+// verlieren nur die parent_test_id-Referenz. Events des Tests werden hier
+// explizit entfernt, da ihre FK bewusst SET NULL statt CASCADE ist (damit
+// z.B. das "child_test_created"-Event auf einem NICHT geloeschten Parent
+// nicht durch das Loeschen eines fremden Tests verschwindet).
+router.delete("/owner/:ownerToken", deleteTestLimiter, (req, res) => {
+  const test = db
+    .prepare("SELECT id FROM tests WHERE owner_token = ?")
+    .get(req.params.ownerToken) as { id: number } | undefined;
+
+  if (!test) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  const deleteTest = db.transaction((testId: number) => {
+    db.prepare("DELETE FROM events WHERE test_id = ?").run(testId);
+    db.prepare("DELETE FROM tests WHERE id = ?").run(testId);
+  });
+  deleteTest(test.id);
+
+  res.status(204).end();
+});
+
 // --- Empfaenger-/Spiel-Flow (Phase 3) --------------------------------------
 
 interface PlayAnswerInput {

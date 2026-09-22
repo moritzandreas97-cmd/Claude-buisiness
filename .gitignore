@@ -9,3 +9,4 @@ build/
 # runtime SQLite database
 server/data/*.sqlite
 server/data/*.sqlite-*
+server/backups/

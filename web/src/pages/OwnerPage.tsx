@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { buildShareMessage, ownerTexts } from "../config/texts";
-import { fetchOwnerTest, trackEvent } from "../lib/api";
+import { deleteOwnedTest, fetchOwnerTest, trackEvent } from "../lib/api";
 import type { OwnerTestResponse } from "../lib/api";
 import { shareOrCopy } from "../lib/share";
+import { removeOwnedTest } from "../lib/storage";
 
-type LoadState = "loading" | "ready" | "not_found";
+type LoadState = "loading" | "ready" | "confirming_delete" | "deleting" | "deleted" | "not_found";
 
 export default function OwnerPage() {
   const { ownerToken } = useParams<{ ownerToken: string }>();
@@ -22,10 +23,33 @@ export default function OwnerPage() {
       .catch(() => setState("not_found"));
   }, [ownerToken]);
 
+  async function handleDelete() {
+    if (!ownerToken) return;
+    setState("deleting");
+    try {
+      await deleteOwnedTest(ownerToken);
+      removeOwnedTest(ownerToken);
+      setState("deleted");
+    } catch {
+      setState("ready");
+    }
+  }
+
   if (state === "loading") {
     return (
       <main className="screen screen-center">
-        <p className="body-text">Laedt...</p>
+        <p className="body-text">Lädt...</p>
+      </main>
+    );
+  }
+
+  if (state === "deleted") {
+    return (
+      <main className="screen screen-center">
+        <p className="body-text">Test wurde gelöscht.</p>
+        <Link to="/" className="btn btn-secondary">
+          Zur Startseite
+        </Link>
       </main>
     );
   }
@@ -59,6 +83,33 @@ export default function OwnerPage() {
       <button type="button" className="btn btn-primary btn-lg" onClick={handleShare}>
         {ownerTexts.shareCta}
       </button>
+
+      <div className="danger-zone">
+        {state === "confirming_delete" ? (
+          <>
+            <p className="footnote danger-text">
+              Test und alle dazugehörigen Antworten wirklich löschen?
+            </p>
+            <div className="danger-actions">
+              <button type="button" className="link-button" onClick={() => setState("ready")}>
+                Abbrechen
+              </button>
+              <button type="button" className="link-button danger-text" onClick={() => void handleDelete()}>
+                Ja, löschen
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="link-button"
+            disabled={state === "deleting"}
+            onClick={() => setState("confirming_delete")}
+          >
+            {state === "deleting" ? "Wird gelöscht..." : "Test löschen"}
+          </button>
+        )}
+      </div>
     </main>
   );
 }
