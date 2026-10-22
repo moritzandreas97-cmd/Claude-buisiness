@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   UserRound, Users, Share2, Sparkles, History, BadgeCheck, Coffee, PartyPopper, AtSign, MessageCircle, Phone, Mail,
-  Handshake, Lightbulb, Search, Presentation, CalendarCheck, Target, ShieldAlert, ShieldCheck, Info, Copy, Check, ChevronRight, Hand, Radar,
+  Handshake, Lightbulb, Search, Presentation, CalendarCheck, Target, ShieldAlert, ShieldCheck, Info, Copy, Check, ChevronRight, Hand, Radar, Package, Shuffle, Zap,
 } from 'lucide-react'
-import { AUDIENCES, CHANNELS, GOALS, buildAcquisition, type Audience, type Channel, type Goal } from '../engine/acquisition/acquisition'
+import { AUDIENCES, CHANNELS, GOALS, buildAcquisition, composeInstant, type Audience, type Channel, type Goal } from '../engine/acquisition/acquisition'
 import { useActive, useAnalysis, useSettings, store, uid } from '../store/store'
 import { DRAFT_ID } from '../store/types'
 import { Button, Panel, copyText, cx } from '../components/ui'
@@ -35,7 +35,7 @@ function Selector<T extends string>({ title, items, value, onChange, accent }: {
               className={cx('flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all active:scale-95',
                 active ? `${on} shadow-[0_0_20px_-6px]` : 'border-white/10 bg-white/[0.02] text-white/70 hover:border-white/25')}>
               <Icon size={16} className="shrink-0" />
-              <span className="leading-tight">{it.label}</span>
+              <span className="min-w-0 hyphens-auto break-words leading-tight">{it.label}</span>
             </button>
           )
         })}
@@ -47,7 +47,7 @@ function Selector<T extends string>({ title, items, value, onChange, accent }: {
 export function AcquisitionView() {
   const c = useActive()
   const settings = useSettings()
-  const { strategy } = useAnalysis(c)
+  const { strategy, product } = useAnalysis(c)
   const [audience, setAudience] = useState<Audience>('stranger')
   const [channel, setChannel] = useState<Channel>('event')
   const [goal, setGoal] = useState<Goal>('contact')
@@ -57,9 +57,23 @@ export function AcquisitionView() {
   const [copied, setCopied] = useState(false)
 
   const plan = useMemo(
-    () => buildAcquisition(audience, channel, goal, settings.offer, useProfile ? strategy.drivers : []),
-    [audience, channel, goal, settings.offer, useProfile, strategy.drivers],
+    () => buildAcquisition(audience, channel, goal, product, useProfile ? strategy.drivers : [], settings.address),
+    [audience, channel, goal, product, useProfile, strategy.drivers, settings.address],
   )
+  const instant = composeInstant(plan, channel, product, settings.address, choice)
+  const instantText = instant.lines.filter((l) => l.text).map((l) => (instant.kind === 'written' ? l.text : `${l.label}: ${l.text}`)).join(instant.kind === 'written' ? '\n\n' : '\n').replaceAll('\\n', '\n')
+  const [instantCopied, setInstantCopied] = useState(false)
+  /** Wechselt Einstieg, Frage und Überleitung jeweils zur nächsten Alternative. */
+  const shuffle = () => setChoice((cur) => {
+    const next = { ...cur }
+    for (const key of ['opener', 'question', 'transition'] as const) {
+      const alts = plan.steps.find((st) => st.key === key)!.alternatives.filter((a) => a.example)
+      // Ohne Auswahl zeigt die Ansprache die erste Alternative – dann zur zweiten wechseln.
+      const idx = Math.max(0, alts.findIndex((a) => a.id === cur[key]))
+      next[key] = alts[(idx + 1) % alts.length].id
+    }
+    return next
+  })
 
   useEffect(() => {
     setStep(0); setChoice({})
@@ -99,6 +113,43 @@ export function AcquisitionView() {
           <Selector title="Wo findet die Ansprache statt?" items={CHANNELS} value={channel} onChange={setChannel} accent="cyan" />
           <Selector title="Was ist mein Ziel?" items={GOALS} value={goal} onChange={setGoal} accent="violet" />
         </div>
+        <div className="relative mt-5">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Welches Produkt?</p>
+          <div className="flex flex-wrap gap-2">
+            {settings.products.map((p) => {
+              const on = p.id === product.id
+              return (
+                <button key={p.id} type="button" onClick={() => store.setActiveProduct(p.id)}
+                  className={cx('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all active:scale-95',
+                    on ? 'border-gold/70 bg-gold/15 text-gold shadow-[0_0_20px_-6px] shadow-gold/40' : 'border-white/10 bg-white/[0.02] text-white/70 hover:border-white/25')}>
+                  <Package size={15} />{p.name || 'Ohne Namen'}{p.price && <span className="font-mono text-[11px] opacity-70">{p.price}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <motion.div key={`${audience}-${channel}-${goal}-${product.id}-${settings.address}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className={cx('relative mt-5 rounded-2xl border p-4 sm:p-5', blocked ? 'border-rose/40 bg-rose/5' : 'border-cyan/30 bg-cyan/[0.06]')}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan"><Zap size={14} /> {instant.kind === 'written' ? 'Nachricht · sofort nutzbar' : 'Ansprache · sofort nutzbar'}</p>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="!px-2.5 !py-1.5" onClick={shuffle}><Shuffle size={14} /> Variante</Button>
+              <Button variant="ghost" className="!px-2.5 !py-1.5" onClick={async () => { if (await copyText(instantText)) { setInstantCopied(true); setTimeout(() => setInstantCopied(false), 1500) } }}>
+                {instantCopied ? <Check size={14} /> : <Copy size={14} />} Kopieren
+              </Button>
+            </div>
+          </div>
+          {blocked && <p className="mb-3 text-sm text-rose">Achtung: Für diese Kombination fehlt in der Regel die rechtliche Grundlage – siehe Hinweis unten. Nur mit Einwilligung verwenden.</p>}
+          <div className={cx('space-y-2.5', instant.kind === 'written' && 'font-display')}>
+            {instant.lines.filter((l) => l.text).map((l) => (
+              <div key={l.label} className={cx(instant.kind === 'spoken' && 'grid gap-1 sm:grid-cols-[120px_1fr] sm:gap-3')}>
+                <span className="text-[10px] uppercase tracking-widest text-white/40 sm:pt-1">{l.label}</span>
+                <p className={cx('whitespace-pre-line text-white/90', instant.kind === 'spoken' ? 'text-base sm:text-lg' : 'text-sm sm:text-base')}>{instant.kind === 'spoken' ? `„${l.text}“` : l.text.replaceAll('\\n', '\n')}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       </Panel>
 
       <div className="space-y-2">

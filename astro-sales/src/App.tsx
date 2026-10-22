@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Orbit, Target, Radio, Radar, Users, Settings2, ChevronDown } from 'lucide-react'
-import { store, useActive, useStore } from './store/store'
+import { Orbit, Target, Radio, Radar, Users, Settings2, ChevronDown, Package } from 'lucide-react'
+import { store, useActive, useActiveProduct, useSettings, useStore } from './store/store'
 import { DRAFT_ID } from './store/types'
 import { cx } from './components/ui'
 import { ProfilerView } from './views/ProfilerView'
@@ -10,14 +10,16 @@ import { LiveView } from './views/LiveView'
 import { AcquisitionView } from './views/AcquisitionView'
 import { CustomersView } from './views/CustomersView'
 import { SettingsView } from './views/SettingsView'
+import { ProductsView } from './views/ProductsView'
 
-type Tab = 'profiler' | 'strategy' | 'live' | 'acquisition' | 'customers' | 'settings'
+type Tab = 'profiler' | 'strategy' | 'live' | 'acquisition' | 'products' | 'customers' | 'settings'
 
 const TABS: { id: Tab; label: string; short: string; icon: ComponentType<{ size?: number }>; view: ComponentType }[] = [
   { id: 'profiler', label: 'Astro Profiler', short: 'Profil', icon: Orbit, view: ProfilerView },
   { id: 'strategy', label: 'Strategie', short: 'Strategie', icon: Target, view: StrategyView },
   { id: 'live', label: 'Live-Modus', short: 'Live', icon: Radio, view: LiveView },
   { id: 'acquisition', label: 'Akquise-Box', short: 'Akquise', icon: Radar, view: AcquisitionView },
+  { id: 'products', label: 'Angebote', short: 'Angebot', icon: Package, view: ProductsView },
   { id: 'customers', label: 'Kunden', short: 'Kunden', icon: Users, view: CustomersView },
   { id: 'settings', label: 'Einstellungen', short: 'Setup', icon: Settings2, view: SettingsView },
 ]
@@ -33,17 +35,43 @@ function initialTab(): Tab {
   }
 }
 
+const SELECT_CLS = 'w-full appearance-none rounded-full border border-white/10 bg-black/40 py-1.5 pr-8 pl-3 text-sm text-white/85 outline-none hover:border-gold/40 focus:border-gold/60'
+
+function ProductSwitch() {
+  const products = useSettings().products
+  const active = useActiveProduct()
+  return (
+    <label className="relative flex min-w-0 flex-1 items-center sm:max-w-56 sm:flex-none">
+      <span className="sr-only">Aktives Produkt</span>
+      <select value={active.id} onChange={(e) => store.setActiveProduct(e.target.value)} className={cx(SELECT_CLS, 'border-cyan/20')}>
+        {products.map((p) => <option key={p.id} value={p.id}>◆ {p.name || 'Ohne Namen'}</option>)}
+      </select>
+      <ChevronDown size={14} className="pointer-events-none absolute right-3 text-white/40" />
+    </label>
+  )
+}
+
+function AddressToggle() {
+  const address = useSettings().address
+  return (
+    <div className="flex shrink-0 rounded-full border border-white/10 bg-black/40 p-0.5" role="group" aria-label="Anrede">
+      {(['sie', 'du'] as const).map((a) => (
+        <button key={a} type="button" onClick={() => store.updateSettings({ address: a })} aria-pressed={address === a}
+          className={cx('rounded-full px-3 py-1 text-sm transition-colors', address === a ? 'bg-gradient-to-r from-gold to-cyan font-semibold text-ink' : 'text-white/55 hover:text-white')}>
+          {a === 'sie' ? 'Sie' : 'Du'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function CustomerSwitch() {
   const customers = useStore((s) => s.customers)
   const active = useActive()
   return (
-    <label className="relative flex items-center">
+    <label className="relative flex min-w-0 flex-1 items-center sm:max-w-56 sm:flex-none">
       <span className="sr-only">Aktives Profil</span>
-      <select
-        value={active.id}
-        onChange={(e) => store.setActive(e.target.value)}
-        className="max-w-44 appearance-none rounded-full border border-white/10 bg-black/40 py-1.5 pr-8 pl-3 text-sm text-white/85 outline-none hover:border-gold/40 focus:border-gold/60 sm:max-w-60"
-      >
+      <select value={active.id} onChange={(e) => store.setActive(e.target.value)} className={SELECT_CLS}>
         <option value={DRAFT_ID}>✦ Entwurf (ungespeichert)</option>
         {customers.map((c) => <option key={c.id} value={c.id}>{c.name || 'Ohne Namen'}</option>)}
       </select>
@@ -87,10 +115,21 @@ export function App() {
       </aside>
 
       <div className="md:pl-60">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/5 bg-ink/70 px-4 py-3 backdrop-blur-xl sm:px-6">
-          <div className="md:hidden"><Logo compact /></div>
-          <p className="hidden text-sm text-white/45 md:block">{TABS.find((t) => t.id === tab)!.label}</p>
-          <CustomerSwitch />
+        <header className="sticky top-0 z-20 border-b border-white/5 bg-ink/70 px-4 py-2.5 backdrop-blur-xl sm:px-6 sm:py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="md:hidden"><Logo compact /></div>
+            <p className="hidden text-sm text-white/45 lg:block">{TABS.find((t) => t.id === tab)!.label}</p>
+            <div className="hidden items-center gap-2 sm:flex">
+              <CustomerSwitch />
+              <ProductSwitch />
+              <AddressToggle />
+            </div>
+            <div className="sm:hidden"><AddressToggle /></div>
+          </div>
+          <div className="mt-2 flex gap-2 sm:hidden">
+            <CustomerSwitch />
+            <ProductSwitch />
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1600px] px-4 pt-4 pb-28 sm:px-6 md:pb-10">
@@ -102,12 +141,12 @@ export function App() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-white/10 bg-ink/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 border-t border-white/10 bg-ink/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
         {TABS.map((t) => {
           const Icon = t.icon
           const on = t.id === tab
           return (
-            <button key={t.id} type="button" onClick={() => setTab(t.id)} className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[10px]', on ? 'text-gold' : 'text-white/45')}>
+            <button key={t.id} type="button" onClick={() => setTab(t.id)} className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[9.5px]', on ? 'text-gold' : 'text-white/45')}>
               <Icon size={20} />
               {t.short}
             </button>

@@ -17,15 +17,14 @@ export function SettingsView() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title="Mein Angebot" icon={<Briefcase size={14} />}>
+      <Panel title="Gespräch" icon={<Briefcase size={14} />}>
         <div className="space-y-3">
-          <label className="block"><Label>Produkt / Dienstleistung</Label>
-            <input className="field" value={s.offer.name} onChange={(e) => store.updateSettings({ offer: { ...s.offer, name: e.target.value } })} />
-          </label>
-          <label className="block"><Label>Kernnutzen in einem Satz</Label>
-            <input className="field" value={s.offer.benefit} onChange={(e) => store.updateSettings({ offer: { ...s.offer, benefit: e.target.value } })} />
-          </label>
-          <p className="text-xs text-white/40">Wird in Nutzenargumente, Beispielsätze und Akquise-Leitfäden eingesetzt.</p>
+          <div>
+            <Label>Anrede in allen Formulierungen</Label>
+            <Segmented value={s.address} options={[{ id: 'sie', label: 'Sie' }, { id: 'du', label: 'Du' }]}
+              onChange={(address) => store.updateSettings({ address })} />
+          </div>
+          <p className="text-xs text-white/40">Gilt global für Strategie, Live-Modus und Akquise-Box (auch oben in der Kopfzeile umschaltbar). Produkte und Preise werden unter „Angebote“ gepflegt.</p>
         </div>
       </Panel>
 

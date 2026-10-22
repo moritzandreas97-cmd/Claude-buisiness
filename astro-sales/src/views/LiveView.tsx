@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Radio, Undo2, Save, CheckCircle2, XCircle, MessageSquareQuote, Footprints } from 'lucide-react'
-import { store, uid, useActive, useAnalysis, useSettings } from '../store/store'
+import { Radio, Undo2, Save, MessageSquareQuote, Footprints, Lightbulb, RefreshCw } from 'lucide-react'
+import { store, uid, useActive, useAnalysis, useLiveSignals, useSettings } from '../store/store'
 import { DRAFT_ID } from '../store/types'
-import { Button, Panel, cx } from '../components/ui'
+import { BasisBadge, Button, Panel, cx } from '../components/ui'
 import { ObservationPicker } from '../components/FactsEditor'
-import { PHASE_LABEL, SIGNALS, SIGNAL_BY_ID, liveState, recommend, type LiveSignal, type Phase } from '../engine/strategy/live'
+import { PHASE_LABEL, SIGNALS, SIGNAL_BY_ID, coach, liveState, type LiveSignal, type Phase } from '../engine/strategy/live'
 import { neural } from '../integration/neural'
 
 const PHASES: Phase[] = ['opening', 'discovery', 'presentation', 'objection', 'closing']
@@ -20,24 +20,39 @@ const TONE = {
 export function LiveView() {
   const c = useActive()
   const settings = useSettings()
-  const { strategy } = useAnalysis(c)
-  const [signals, setSignals] = useState<{ s: LiveSignal; at: number }[]>([])
+  const { strategy, product } = useAnalysis(c)
+  const signals = useLiveSignals(c.id)
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(false)
+  const [alt, setAlt] = useState(0)
 
   const last = signals.at(-1)
-  const rec = last ? recommend(last.s, strategy.drivers, settings.offer) : null
   const state = liveState(signals.map((x) => x.s))
+  const coaching = last ? coach(last.s, strategy.drivers, product, settings.address) : null
+
+  // Ohne Signal: Empfehlung aus der Strategie für die aktuelle Phase.
+  const card = coaching
+    ? { say: coaching.say, why: coaching.why, hint: coaching.hint, next: coaching.next, tone: coaching.signal.tone, key: `${signals.length}` }
+    : {
+        say: strategy.focus.say.map((i) => i.text),
+        why: { text: strategy.focus.say[0]?.why ?? 'Passend zur aktuellen Gesprächsphase.', basis: strategy.focus.say[0]?.basis ?? 'general' },
+        hint: undefined,
+        next: strategy.focus.next.text,
+        tone: 'neutral' as const,
+        key: `focus-${strategy.focus.phase}`,
+      }
+  const sayText = card.say.length ? card.say[alt % card.say.length] : ''
 
   const push = (s: LiveSignal) => {
-    setSignals((cur) => [...cur, { s, at: Date.now() }])
+    store.pushSignal(s)
     setSaved(false)
+    setAlt(0)
     neural.emit({ type: 'live.signal', customerId: c.id === DRAFT_ID ? null : c.id, signal: s })
   }
 
   const save = () => {
     const text = [
-      `Live-Gespräch · Phase: ${PHASE_LABEL[state.phase]} · Temperatur ${state.temperature}`,
+      `Live-Gespräch · ${product.name} · Phase: ${PHASE_LABEL[state.phase]} · Temperatur ${state.temperature}`,
       signals.map((x) => SIGNAL_BY_ID[x.s].label).join(' → '),
       note,
     ].filter(Boolean).join('\n')
@@ -51,27 +66,27 @@ export function LiveView() {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+    <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div className="space-y-4">
-        <Panel glow>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
+        <Panel glow className="!p-3 sm:!p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="relative flex h-3 w-3 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose opacity-60" />
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-rose" />
               </span>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Live Sales Assistant</p>
-                <h1 className="text-lg font-semibold">{c.name || 'Ohne Kundenprofil'}</h1>
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Live · {PHASE_LABEL[state.phase === 'ended' ? 'ended' : strategy.focus.phase]}</p>
+                <h1 className="truncate text-base font-semibold sm:text-lg">{c.name || 'Ohne Kundenprofil'} <span className="text-white/35">×</span> <span className="text-cyan">{product.name}</span></h1>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" disabled={!signals.length} onClick={() => setSignals((s) => s.slice(0, -1))}><Undo2 size={14} /> Zurück</Button>
-              <Button variant="ghost" disabled={!signals.length} onClick={() => { setSignals([]); setNote(''); setSaved(false) }}>Neu</Button>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="ghost" className="!px-2.5" disabled={!signals.length} onClick={() => { store.undoSignal(); setAlt(0) }}><Undo2 size={14} /><span className="hidden sm:inline">Zurück</span></Button>
+              <Button variant="ghost" className="!px-2.5" disabled={!signals.length} onClick={() => { store.resetLive(); setNote(''); setSaved(false); setAlt(0) }}>Neu</Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
             {SIGNALS.map((sig) => (
               <motion.button
                 key={sig.id}
@@ -79,51 +94,47 @@ export function LiveView() {
                 whileTap={{ scale: 0.94 }}
                 onClick={() => push(sig.id)}
                 className={cx(
-                  'flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border bg-white/[0.03] p-3 text-center transition-all hover:shadow-[0_0_28px_-6px] sm:min-h-28',
+                  'flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border bg-white/[0.03] p-1.5 text-center transition-all hover:shadow-[0_0_28px_-6px] sm:min-h-28 sm:p-3',
                   TONE[sig.tone],
                   last?.s === sig.id && 'ring-2 ring-gold/60',
                 )}
               >
-                <span className="text-3xl" aria-hidden>{sig.emoji}</span>
-                <span className="text-sm font-medium leading-tight">{sig.label}</span>
+                <span className="text-2xl sm:text-3xl" aria-hidden>{sig.emoji}</span>
+                <span className="text-[11px] font-medium leading-tight sm:text-sm">{sig.label}</span>
               </motion.button>
             ))}
           </div>
         </Panel>
 
         <AnimatePresence mode="wait">
-          {rec ? (
-            <motion.div key={signals.length} initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
-              <Panel className={cx(rec.signal.tone === 'stop' && 'border-rose/40')}>
-                <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/40">
-                  <span className="text-xl">{rec.signal.emoji}</span> Empfehlung jetzt
-                </div>
-                <h2 className={cx('mt-1 text-xl font-semibold sm:text-2xl', rec.signal.tone === 'stop' ? 'text-rose' : 'text-gold text-glow-gold')}>{rec.headline}</h2>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div>
-                    <ul className="space-y-1.5">
-                      {rec.do.map((d) => <li key={d} className="flex gap-2 text-sm"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-cyan" />{d}</li>)}
-                      {rec.tailored.map((d) => <li key={d} className="flex gap-2 text-sm text-violet"><CheckCircle2 size={16} className="mt-0.5 shrink-0" />{d} <span className="text-[10px] uppercase text-violet/60">Profil</span></li>)}
-                      <li className="flex gap-2 text-sm text-white/60"><XCircle size={16} className="mt-0.5 shrink-0 text-rose" />{rec.avoid}</li>
-                    </ul>
-                  </div>
-                  <div className="space-y-2">
-                    {rec.phrases.map((p) => (
-                      <p key={p} className="flex gap-2 rounded-xl bg-white/[0.04] p-3 text-base leading-snug"><MessageSquareQuote size={16} className="mt-1 shrink-0 text-gold" />{p}</p>
-                    ))}
-                  </div>
-                </div>
-                <p className="mt-4 flex items-center gap-2 rounded-xl border border-cyan/20 bg-cyan/5 px-3 py-2 text-sm text-cyan"><Footprints size={16} />{rec.next}</p>
-              </Panel>
-            </motion.div>
-          ) : (
-            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Panel>
-                <p className="text-sm text-white/50">Tippe auf ein Signal, sobald es im Gespräch auftritt – die Empfehlung erscheint sofort.</p>
-                {strategy.opener[0] && <p className="mt-3 text-base"><span className="text-gold">Einstieg:</span> {strategy.opener[0].text}</p>}
-              </Panel>
-            </motion.div>
-          )}
+          <motion.div key={card.key} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}
+            className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-[1.4fr_1fr_1fr]">
+            <section className={cx('panel panel-glow col-span-2 p-3.5 sm:p-5 lg:col-span-1', card.tone === 'stop' && 'border-rose/40')}>
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-gold"><MessageSquareQuote size={14} /> Was sagen?</h2>
+                {card.say.length > 1 && (
+                  <button type="button" onClick={() => setAlt((a) => a + 1)} className="flex items-center gap-1 text-xs text-white/45 hover:text-gold">
+                    <RefreshCw size={12} /> Alternative ({(alt % card.say.length) + 1}/{card.say.length})
+                  </button>
+                )}
+              </div>
+              <p className={cx('text-base leading-snug font-medium sm:text-xl', card.tone === 'stop' ? 'text-rose' : 'text-white')}>„{sayText}“</p>
+            </section>
+            <section className="panel p-3 sm:p-5">
+              <h2 className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet sm:text-[11px]"><Lightbulb size={14} /> Warum?</h2>
+              <p className="text-[13px] leading-snug text-white/85 sm:text-sm sm:leading-relaxed">{card.why.text}</p>
+              <div className="mt-2"><BasisBadge basis={card.why.basis} /></div>
+              {card.hint && (
+                <p className="mt-2 hidden border-t border-white/5 pt-2 text-xs text-white/55 sm:block">
+                  <span className={card.hint.basis === 'observed' ? 'text-cyan' : 'text-violet'}>{card.hint.basis === 'observed' ? 'Beobachtung: ' : 'Profil-Hypothese: '}</span>{card.hint.text}
+                </p>
+              )}
+            </section>
+            <section className="panel p-3 sm:p-5">
+              <h2 className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan sm:text-[11px]"><Footprints size={14} /> Was als Nächstes?</h2>
+              <p className="text-[13px] leading-snug text-white/85 sm:text-sm sm:leading-relaxed">{card.next}</p>
+            </section>
+          </motion.div>
         </AnimatePresence>
       </div>
 
@@ -161,8 +172,11 @@ export function LiveView() {
           <textarea className="field mt-3 min-h-20 text-sm" placeholder="Kurze Notiz (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
           <Button className="mt-3 w-full" disabled={!signals.length || saved} onClick={save}><Save size={16} />{saved ? 'In Historie gespeichert' : c.id === DRAFT_ID ? 'Im Entwurf speichern' : 'In Kundenhistorie speichern'}</Button>
         </Panel>
-        <Panel title="Beobachtung live ergänzen">
-          <ObservationPicker c={c} />
+        <Panel>
+          <details>
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Beobachtung live ergänzen</summary>
+            <div className="mt-3"><ObservationPicker c={c} /></div>
+          </details>
         </Panel>
       </div>
     </div>

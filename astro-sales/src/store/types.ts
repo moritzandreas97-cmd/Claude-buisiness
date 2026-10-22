@@ -1,7 +1,8 @@
 import type { BirthData, CalcOptions, InputMode, ManualValues } from '../engine/astro/calculate'
 import type { ObservationId } from '../engine/behavior/observations'
 import type { LiveSignal } from '../engine/strategy/live'
-import type { OfferContext } from '../engine/strategy/strategy'
+import type { OfferContext, StrategyPhase } from '../engine/strategy/strategy'
+import type { Address } from '../engine/strategy/address'
 import type { RuleSet } from '../engine/symbolic/rules'
 import type { AIConfig } from '../ai/provider'
 import type { NeuralConfig } from '../integration/neural'
@@ -75,8 +76,14 @@ export interface Customer {
   history: HistoryEntry[]
 }
 
+export interface Product extends OfferContext {
+  id: string
+}
+
 export interface Settings {
-  offer: OfferContext
+  address: Address
+  products: Product[]
+  activeProductId: string
   rules: RuleSet
   calc: CalcOptions
   ai: AIConfig
@@ -84,3 +91,11 @@ export interface Settings {
 }
 
 export const DRAFT_ID = 'draft'
+
+/** Laufendes Live-Gespräch – geteilt zwischen Live-Modus und Strategie. */
+export interface LiveSession {
+  customerId: string
+  signals: { s: LiveSignal; at: number }[]
+}
+
+export type { StrategyPhase }

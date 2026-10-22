@@ -1,18 +1,25 @@
 import { DIM_BY_ID, DIM_IDS, type DimensionId } from '../symbolic/dimensions'
 import { OBS_BY_ID, type MergedProfile } from '../behavior/observations'
 import { PLAYBOOK, type PlayEntry } from './playbook'
+import { addr, capFirst, type Address } from './address'
+import {
+  BENEFIT_FRAMES, CLOSINGS, FOLLOWUPS, GENERIC_BENEFIT, GENERIC_CLOSINGS, GENERIC_OPENER, NEED_BENEFIT, OPENERS, PHASE_NEXT,
+  type StyleKey,
+} from './phrases'
+import type { LiveSignal, Phase } from './live'
 
 /** Herkunft einer Empfehlung – in absteigender Priorität. */
-export type Basis = 'stated' | 'observed' | 'symbolic' | 'general'
+export type Basis = 'stated' | 'reaction' | 'observed' | 'symbolic' | 'general'
 
 export const BASIS_LABEL: Record<Basis, string> = {
   stated: 'Kundenaussage',
+  reaction: 'Kundenreaktion',
   observed: 'Beobachtung',
   symbolic: 'Symbolische Hypothese',
   general: 'Allgemein',
 }
 
-const BASIS_RANK: Record<Basis, number> = { stated: 0, observed: 1, symbolic: 2, general: 3 }
+const BASIS_RANK: Record<Basis, number> = { stated: 0, reaction: 1, observed: 2, symbolic: 3, general: 4 }
 
 export interface Item {
   text: string
@@ -34,9 +41,13 @@ export interface KnownFacts {
   referral?: string
 }
 
+/** Produkt bzw. Angebot, auf das sich das Gespräch bezieht. */
 export interface OfferContext {
   name: string
-  benefit: string
+  description: string
+  benefits: string[]
+  audience: string
+  price: string
 }
 
 export interface Driver {
@@ -46,22 +57,59 @@ export interface Driver {
   basis: Basis
 }
 
+export type StrategyPhase = Exclude<Phase, 'ended'>
+
+export interface StrategyOptions {
+  address: Address
+  phase: StrategyPhase
+  /** Tatsächliche Kundenreaktionen (z. B. aus dem Live-Modus) – haben Vorrang vor Symbolik. */
+  reactions: LiveSignal[]
+}
+
+export const DEFAULT_STRATEGY_OPTIONS: StrategyOptions = { address: 'sie', phase: 'opening', reactions: [] }
+
+export interface PhaseFocus {
+  phase: StrategyPhase
+  say: Item[]
+  ask: Item[]
+  next: Item
+}
+
 export interface Strategy {
   drivers: Driver[]
+  /** Kunde hat abgelehnt – keine weitere Ansprache ohne neue Zustimmung. */
+  stopped: boolean
+  reactions: Item[]
+  focus: PhaseFocus
   opener: Item[]
   style: { tempo: string; energy: number; items: Item[] }
   topics: Item[]
   benefits: Item[]
   questions: Item[]
   objections: ObjectionItem[]
+  closings: Item[]
   nextStep: Item[]
-  phrases: Item[]
 }
 
-export const DEFAULT_OFFER: OfferContext = { name: 'mein Angebot', benefit: 'spürbar mehr Klarheit und weniger Aufwand' }
+export const DEFAULT_OFFER: OfferContext = {
+  name: 'mein Angebot',
+  description: '',
+  benefits: ['spürbar mehr Klarheit und weniger Aufwand'],
+  audience: '',
+  price: '',
+}
 
-export function fill(text: string, offer: OfferContext): string {
-  return text.replaceAll('{offer}', offer.name || DEFAULT_OFFER.name).replaceAll('{benefit}', offer.benefit || DEFAULT_OFFER.benefit)
+/** Löst Du/Sie-Doppelformen und Produkt-Platzhalter auf. */
+export function fill(text: string, offer: OfferContext, address: Address = 'sie'): string {
+  const benefits = offer.benefits.filter((b) => b.trim())
+  const b1 = benefits[0] ?? DEFAULT_OFFER.benefits[0]
+  return addr(text, address)
+    .replaceAll('{offer}', offer.name.trim() || DEFAULT_OFFER.name)
+    .replaceAll('{benefit2}', benefits[1] ?? b1)
+    .replaceAll('{benefit}', b1)
+    .replaceAll('{price}', offer.price.trim() || 'auf Anfrage')
+    .replaceAll('{audience}', offer.audience.trim() || 'Interessierte')
+    .replaceAll('{description}', offer.description.trim() || offer.name.trim() || DEFAULT_OFFER.name)
 }
 
 const byBasis = <T extends { basis: Basis }>(a: T, b: T) => BASIS_RANK[a.basis] - BASIS_RANK[b.basis]
@@ -92,68 +140,130 @@ function why(d: Driver, merged: MergedProfile): string {
   return `${label} – symbolisch abgeleitet`
 }
 
-export function buildStrategy(merged: MergedProfile, facts: KnownFacts, offer: OfferContext): Strategy {
+/** Leitet aus tatsächlichen Kundenreaktionen konkrete Hinweise ab (höchste Priorität nach Kundenaussagen). */
+const REACTION_HINT: Record<LiveSignal, string> = {
+  interest: 'Hat Interesse gezeigt → genau an diesem Punkt anknüpfen und vertiefen.',
+  details: 'Hat nach Details gefragt → konkrete Unterlagen, Belege oder ein Beispiel bereithalten.',
+  doubt: 'Hat Zweifel geäußert → zuerst nachfragen, worauf sie sich beziehen, dann sachlich klären.',
+  compare: 'Möchte vergleichen → faire Vergleichskriterien anbieten, Wettbewerb nicht schlechtreden.',
+  price: 'Hat nach dem Preis gefragt → Preis ({price}) klar nennen und direkt mit dem Nutzen verbinden.',
+  time: 'Braucht Bedenkzeit → konkreten Rückmeldetermin vereinbaren, keinen Druck aufbauen.',
+  ready: 'Ist bereit für den nächsten Schritt → Abschluss einfach und klar machen.',
+  no: 'Hat abgelehnt → Nein respektieren, keine weitere Ansprache ohne neue Zustimmung.',
+}
+
+export function buildStrategy(
+  merged: MergedProfile,
+  facts: KnownFacts,
+  offer: OfferContext,
+  opts: StrategyOptions = DEFAULT_STRATEGY_OPTIONS,
+): Strategy {
   const drivers = selectDrivers(merged)
-  const plays: { d: Driver; p: PlayEntry; w: string }[] = drivers.map((d) => ({
-    d, p: PLAYBOOK[d.id][d.side], w: why(d, merged),
+  const plays: { d: Driver; key: StyleKey; p: PlayEntry; w: string }[] = drivers.map((d) => ({
+    d, key: `${d.id}:${d.side}` as StyleKey, p: PLAYBOOK[d.id][d.side], w: why(d, merged),
   }))
-  const f = (t: string) => fill(t, offer)
+  const say = (t: string) => capFirst(fill(t, offer, opts.address))
+  const basisOf = (d: Driver): Basis => (d.basis === 'observed' ? 'observed' : 'symbolic')
+  const benefitList = offer.benefits.filter((b) => b.trim()).length ? offer.benefits.filter((b) => b.trim()) : DEFAULT_OFFER.benefits
+
+  // Jüngste Reaktionen zuerst, jede nur einmal.
+  const recent = [...new Set([...opts.reactions].reverse())]
+  const has = (s: LiveSignal) => opts.reactions.includes(s)
+  const stopped = opts.reactions.at(-1) === 'no'
+  const reactions: Item[] = recent.map((s) => ({ text: say(REACTION_HINT[s]), basis: 'reaction', why: 'Tatsächliche Reaktion im Gespräch' }))
 
   const opener: Item[] = []
   if (facts.referral) {
-    opener.push({ text: `Auf die Empfehlung Bezug nehmen: „${facts.referral} hat mir erzählt, dass … – deshalb wollte ich mich bei Ihnen melden.“`, basis: 'stated', why: 'Bekannte Empfehlung' })
+    opener.push({ text: say(`${facts.referral} hat mir erzählt, dass … – deshalb wollte ich mich bei {Ihnen|dir} melden. {Haben Sie|Hast du} kurz Zeit?`), basis: 'stated', why: 'Bekannte Empfehlung' })
   }
-  facts.wishes.slice(0, 2).forEach((w) => opener.push({ text: `An den geäußerten Wunsch anknüpfen: „Sie hatten erwähnt, dass Ihnen ${w} wichtig ist …“`, basis: 'stated', why: 'Ausdrücklich geäußerter Wunsch' }))
-  plays.forEach(({ d, p, w }) => opener.push({ text: p.opener, basis: d.basis, why: w }))
-  if (!opener.length) opener.push({ text: 'Offen und freundlich einsteigen, Anlass nennen, Erlaubnis für das Gespräch einholen.', basis: 'general' })
+  facts.wishes.slice(0, 2).forEach((w) => opener.push({ text: say(`{Sie hatten|Du hattest} erwähnt, dass {Ihnen|dir} ${w} wichtig ist – dazu habe ich mir etwas überlegt.`), basis: 'stated', why: 'Ausdrücklich geäußerter Wunsch' }))
+  if (has('interest')) opener.push({ text: say('Beim letzten Mal klang {offer} interessant für {Sie|dich} – was ist {Ihnen|dir} davon besonders hängen geblieben?'), basis: 'reaction', why: 'Hat bereits Interesse gezeigt' })
+  plays.forEach(({ d, key, p, w }) => OPENERS[key] && opener.push({ text: say(OPENERS[key]!), basis: basisOf(d), why: `${p.opener} · ${w}` }))
+  opener.push({ text: say(GENERIC_OPENER), basis: 'general', why: 'Neutraler Einstieg mit Erlaubnisfrage' })
 
   const energyDim = merged.energy.value ?? 50
   const tempo = energyDim >= 62 ? 'zügig & energiegeladen' : energyDim <= 38 ? 'ruhig & geduldig' : 'ausgewogen'
-  const styleItems: Item[] = plays.map(({ d, p, w }) => ({ text: p.style, basis: d.basis, why: w }))
+  const styleItems: Item[] = plays.map(({ d, p, w }) => ({ text: p.style, basis: basisOf(d), why: w }))
   if (!styleItems.length) styleItems.push({ text: 'Neutral beginnen und den Stil an die Reaktionen der Person anpassen.', basis: 'general' })
 
   const topics: Item[] = [
     ...facts.interests.map((i) => ({ text: i, basis: 'stated' as Basis, why: 'Bekanntes Interesse' })),
-    ...plays.flatMap(({ d, p, w }) => p.topics.map((t) => ({ text: `${t} – Hypothese, im Gespräch prüfen`, basis: d.basis === 'observed' ? 'observed' as Basis : 'symbolic' as Basis, why: w }))),
+    ...plays.flatMap(({ d, p, w }) => p.topics.map((t) => ({ text: `${t} – Hypothese, im Gespräch prüfen`, basis: basisOf(d), why: w }))),
   ]
 
-  const benefits: Item[] = [
-    ...facts.needs.map((n) => ({ text: `${offer.name || DEFAULT_OFFER.name} adressiert direkt: ${n}`, basis: 'stated' as Basis, why: 'Geäußerter Bedarf' })),
-    ...plays.map(({ d, p, w }) => ({ text: f(p.benefit), basis: d.basis, why: w })),
-  ]
+  const benefits: Item[] = []
+  if (has('price')) benefits.push({ text: say('Der Preis für {offer} liegt bei {price} – dafür {bekommen Sie|bekommst du}: {benefit}.'), basis: 'reaction', why: 'Hat nach dem Preis gefragt' })
+  facts.needs.forEach((n, i) => benefits.push({
+    text: say(NEED_BENEFIT.replace('{need}', n).replace('{b}', benefitList[i % benefitList.length])),
+    basis: 'stated', why: 'Geäußerter Bedarf mit passendem Produktvorteil verknüpft',
+  }))
+  benefitList.slice(0, 3).forEach((b, i) => {
+    const pl = plays[i] ?? plays[0]
+    const frame = (pl && BENEFIT_FRAMES[pl.key]) ?? GENERIC_BENEFIT
+    benefits.push({ text: say(frame.replace('{b}', b)), basis: pl ? basisOf(pl.d) : 'general', why: pl ? `Vorteil im Stil „${DIM_BY_ID[pl.d.id].short}“ · ${pl.w}` : 'Produktvorteil' })
+  })
 
   const questions: Item[] = [
-    ...facts.needs.slice(0, 2).map((n) => ({ text: `Was genau bedeutet „${n}“ für Sie im Alltag?`, basis: 'stated' as Basis, why: 'Bedarf vertiefen' })),
-    ...plays.map(({ d, p, w }) => ({ text: p.question, basis: d.basis, why: w })),
-    { text: 'Was müsste passieren, damit sich das Gespräch für Sie gelohnt hat?', basis: 'general' },
-    { text: 'Wie lösen Sie das Thema aktuell – und was gefällt Ihnen daran (nicht)?', basis: 'general' },
+    ...facts.needs.slice(0, 2).map((n) => ({ text: say(`Was genau bedeutet „${n}“ für {Sie|dich} im Alltag?`), basis: 'stated' as Basis, why: 'Bedarf vertiefen' })),
+    ...(has('doubt') ? [{ text: say('Was genau lässt {Sie|dich} noch zögern?'), basis: 'reaction' as Basis, why: 'Hat Zweifel geäußert' }] : []),
+    ...plays.map(({ d, p, w }) => ({ text: say(p.question), basis: basisOf(d), why: w })),
+    ...FOLLOWUPS[opts.phase].map((q) => ({ text: say(q), basis: 'general' as Basis, why: `Passend zur Phase` })),
   ]
 
   const objections: ObjectionItem[] = [
-    ...plays.map(({ d, p, w }) => ({ objection: p.objection.objection, answer: f(p.objection.answer), basis: d.basis, why: w })),
-    { objection: 'Das ist mir zu teuer.', answer: f('Verstehe. Lassen Sie uns kurz gegenüberstellen, was Sie bekommen und was es Sie kostet, wenn alles bleibt wie es ist. Wenn es nicht passt, ist das völlig in Ordnung.'), basis: 'general' },
-    { objection: 'Kein Interesse.', answer: 'Danke für die klare Antwort – dann respektiere ich das. Darf ich Ihnen meine Kontaktdaten dalassen, falls sich etwas ändert?', basis: 'general' },
+    ...plays.map(({ d, p, w }) => ({ objection: say(p.objection.objection), answer: say(p.objection.answer), basis: basisOf(d), why: w })),
+    { objection: 'Das ist mir zu teuer.', answer: say('Verstehe. {Lassen Sie|Lass} uns kurz gegenüberstellen, was {Sie bekommen|du bekommst} – {benefit} – und was es kostet, wenn alles bleibt, wie es ist. Wenn es nicht passt, ist das völlig in Ordnung.'), basis: has('price') ? 'reaction' : 'general' },
+    { objection: 'Kein Interesse.', answer: say('Danke für die klare Antwort – das respektiere ich. Darf ich {Ihnen|dir} meine Kontaktdaten dalassen, falls sich etwas ändert?'), basis: 'general' },
   ]
 
+  const closings: Item[] = []
+  if (has('ready')) closings.push({ text: say('Prima – dann halten wir fest: {offer}, Start zum vereinbarten Termin. Ich schicke {Ihnen|dir} alles schriftlich.'), basis: 'reaction', why: 'Ist bereit für den nächsten Schritt' })
+  if (has('time')) closings.push({ text: say('Nehmen {Sie|du} sich die Zeit. Passt es, wenn ich mich am … kurz melde?'), basis: 'reaction', why: 'Braucht Bedenkzeit' })
+  plays.forEach(({ d, key, w }) => CLOSINGS[key] && closings.push({ text: say(CLOSINGS[key]!), basis: basisOf(d), why: w }))
+  GENERIC_CLOSINGS.forEach((t) => closings.push({ text: say(t), basis: 'general', why: 'Offene Abschlussfrage ohne Druck' }))
+
   const nextStep: Item[] = [
-    ...plays.slice(0, 2).map(({ d, p, w }) => ({ text: f(p.next), basis: d.basis, why: w })),
+    ...(has('time') ? [{ text: 'Rückmeldetermin vereinbaren und Zusammenfassung schicken.', basis: 'reaction' as Basis }] : []),
+    ...(has('ready') ? [{ text: 'Vereinbarung schriftlich bestätigen und Starttermin eintragen.', basis: 'reaction' as Basis }] : []),
+    ...plays.slice(0, 2).map(({ d, p, w }) => ({ text: say(p.next), basis: basisOf(d), why: w })),
     { text: 'Gemeinsam festhalten: Was ist vereinbart, bis wann, wer meldet sich?', basis: 'general' },
   ]
 
-  const phrases: Item[] = [
-    ...facts.wishes.slice(0, 1).map((w) => ({ text: `„Sie hatten gesagt, ${w} ist Ihnen wichtig – genau da setzt ${offer.name || DEFAULT_OFFER.name} an.“`, basis: 'stated' as Basis })),
-    ...plays.map(({ d, p, w }) => ({ text: `„${f(p.phrase)}“`, basis: d.basis, why: w })),
-  ]
+  const sorted = {
+    opener: opener.sort(byBasis),
+    benefits: benefits.sort(byBasis),
+    questions: dedupe(questions).sort(byBasis),
+    objections: objections.sort(byBasis),
+    closings: dedupe(closings).sort(byBasis),
+    nextStep: nextStep.sort(byBasis),
+  }
+
+  const phaseSay: Record<StrategyPhase, Item[]> = {
+    opening: sorted.opener,
+    discovery: sorted.questions,
+    presentation: sorted.benefits,
+    objection: sorted.objections.map((o) => ({ text: o.answer, basis: o.basis, why: `Auf „${o.objection}“` })),
+    closing: sorted.closings,
+  }
+  const askPool = FOLLOWUPS[opts.phase].map((q) => ({ text: say(q), basis: 'general' as Basis }))
+  const focus: PhaseFocus = {
+    phase: opts.phase,
+    say: phaseSay[opts.phase].slice(0, 3),
+    ask: (opts.phase === 'discovery' ? sorted.questions.slice(3) : askPool).slice(0, 3),
+    next: stopped
+      ? { text: 'Gespräch freundlich beenden. Keine weitere Ansprache ohne neue Zustimmung.', basis: 'reaction' }
+      : reactions.find((r) => r.text.includes('Bedenkzeit') || r.text.includes('bereit')) ?? { text: PHASE_NEXT[opts.phase], basis: 'general' },
+  }
 
   return {
-    drivers,
-    opener: opener.sort(byBasis),
+    drivers, stopped, reactions, focus,
     style: { tempo, energy: energyDim, items: styleItems.sort(byBasis) },
     topics: topics.sort(byBasis),
-    benefits: benefits.sort(byBasis),
-    questions: questions.sort(byBasis),
-    objections: objections.sort(byBasis),
-    nextStep: nextStep.sort(byBasis),
-    phrases: phrases.sort(byBasis),
+    ...sorted,
   }
+}
+
+function dedupe(items: Item[]): Item[] {
+  const seen = new Set<string>()
+  return items.filter((i) => (seen.has(i.text) ? false : (seen.add(i.text), true)))
 }

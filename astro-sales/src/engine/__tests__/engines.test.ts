@@ -4,7 +4,7 @@ import { fuseProfile } from '../symbolic/fusion'
 import { DEFAULT_RULES } from '../symbolic/rules'
 import { mergeWithObservations } from '../behavior/observations'
 import { buildStrategy, DEFAULT_OFFER } from '../strategy/strategy'
-import { liveState, recommend } from '../strategy/live'
+import { coach, liveState } from '../strategy/live'
 import { buildAcquisition } from '../acquisition/acquisition'
 
 const profile = resolveProfile('manual', {}, { sun: 'leo', moon: 'cancer', asc: 'aries', lifePath: 8, animal: 'dragon', chElement: 'fire' })
@@ -43,7 +43,7 @@ describe('Beobachtung hat Vorrang', () => {
 describe('Live & Akquise', () => {
   it('Nein beendet das Gespräch', () => {
     expect(liveState(['interest', 'no']).phase).toBe('ended')
-    expect(recommend('no', [], DEFAULT_OFFER).headline).toMatch(/respektieren/)
+    expect(coach('no', [], DEFAULT_OFFER).say[0]).toMatch(/respektiere/)
   })
   it('warnt bei Kalt-E-Mail', () => {
     const p = buildAcquisition('stranger', 'email', 'contact', DEFAULT_OFFER)

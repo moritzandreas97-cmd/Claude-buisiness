@@ -1,4 +1,5 @@
-import { fill, type Driver, type OfferContext } from './strategy'
+import { fill, type Basis, type Driver, type OfferContext } from './strategy'
+import { capFirst, type Address } from './address'
 
 export type LiveSignal = 'interest' | 'details' | 'doubt' | 'compare' | 'price' | 'time' | 'ready' | 'no'
 
@@ -27,132 +28,118 @@ export const SIGNAL_BY_ID = Object.fromEntries(SIGNALS.map((s) => [s.id, s])) as
 type AdaptKey = `${Driver['id']}:${Driver['side']}`
 
 interface Response {
-  headline: string
-  do: string[]
-  avoid: string
-  phrases: string[]
+  /** Was sagen? – Alternativen, beste zuerst. Du/Sie-Doppelformen. */
+  say: string[]
+  /** Warum? – begründet aus der tatsächlichen Reaktion der Person. */
+  why: string
+  /** Was als Nächstes? */
   next: string
-  adapt: Partial<Record<AdaptKey, string>>
+  /** Stilvarianten je prägender Dimension. */
+  adapt: Partial<Record<AdaptKey, { say: string; why: string }>>
 }
 
 const RESPONSES: Record<LiveSignal, Response> = {
   interest: {
-    headline: 'Interesse vertiefen – nicht sofort abschließen',
-    do: ['Nachfragen, was genau das Interesse geweckt hat', 'Nutzen auf den genannten Punkt zuspitzen'],
-    avoid: 'Nicht mit allen Features überschütten.',
-    phrases: ['„Was genau spricht Sie daran an?“', '„Wenn das für Sie funktioniert – woran würden Sie es zuerst merken?“'],
-    next: 'Bedarf konkretisieren, dann passende Lösung vorstellen.',
+    say: ['Schön, dass {Sie das|dich das} anspricht – was genau {finden Sie|findest du} daran spannend?', 'Wenn das für {Sie|dich} funktioniert – woran {würden Sie|würdest du} es zuerst merken?'],
+    why: 'Interesse ist da – jetzt verstehen, was genau es auslöst, statt sofort abzuschließen.',
+    next: 'Bedarf konkretisieren, dann den passenden Vorteil von {offer} zeigen.',
     adapt: {
-      'emotion:high': 'Begeisterung spiegeln und persönlich bestätigen.',
-      'structure:high': 'Jetzt eine kurze, strukturierte Übersicht anbieten.',
-      'energy:high': 'Tempo mitgehen – direkt einen konkreten Schritt anbieten.',
+      'emotion:high': { say: 'Das freut mich wirklich! Was würde sich für {Sie|dich} persönlich dadurch verändern?', why: 'Begeisterung spiegeln und persönlich machen.' },
+      'structure:high': { say: 'Gern zeige ich {Ihnen|dir} das strukturiert: erst der Ablauf, dann die Zahlen. Passt das?', why: 'Strukturierte Übersicht anbieten.' },
+      'energy:high': { say: 'Super – sollen wir direkt den ersten Schritt festmachen?', why: 'Tempo mitgehen.' },
     },
   },
   details: {
-    headline: 'Details liefern – präzise und ehrlich',
-    do: ['Konkret antworten, keine Ausflüchte', 'Unterlagen oder Beispiel zeigen', 'Prüfen, ob die Antwort ausreicht'],
-    avoid: 'Nichts versprechen, was nicht sicher ist.',
-    phrases: ['„Gute Frage – im Detail sieht das so aus: …“', '„Beantwortet das Ihre Frage, oder soll ich tiefer einsteigen?“'],
-    next: 'Nach weiteren offenen Punkten fragen.',
+    say: ['Gute Frage – konkret sieht das so aus: …', 'Beantwortet das {Ihre|deine} Frage, oder soll ich tiefer einsteigen?'],
+    why: 'Wer nach Details fragt, prüft ernsthaft – präzise und ehrlich antworten.',
+    next: 'Nach weiteren offenen Punkten fragen, Unterlagen anbieten.',
     adapt: {
-      'structure:high': 'Zahlen, Ablauf und Belege nennen – schriftlich nachreichen.',
-      'structure:low': 'Detail kurz halten und mit einem Bild oder Beispiel veranschaulichen.',
-      'security:high': 'Bedingungen, Garantien und Absicherungen transparent machen.',
+      'structure:high': { say: 'Ich schicke {Ihnen|dir} die Details auch schriftlich – mit Zahlen und Ablauf.', why: 'Zahlen und Belege schriftlich nachreichen.' },
+      'structure:low': { say: 'Am einfachsten zeige ich es {Ihnen|dir} kurz an einem Beispiel.', why: 'Detail mit einem Bild statt einer Tabelle erklären.' },
+      'security:high': { say: 'Wichtig für {Sie|dich}: Die Bedingungen sind transparent – ich zeige {Ihnen|dir} genau, was gilt.', why: 'Absicherung transparent machen.' },
     },
   },
   doubt: {
-    headline: 'Zweifel ernst nehmen – erst verstehen, dann antworten',
-    do: ['Zweifel bestätigen („Verständlich“)', 'Nachfragen, worauf er sich genau bezieht', 'Sachlich mit Fakten oder Erfahrungen antworten'],
-    avoid: 'Nicht kleinreden oder Druck aufbauen.',
-    phrases: ['„Das ist ein wichtiger Punkt. Was genau macht Sie unsicher?“', '„Was müsste gegeben sein, damit sich das für Sie gut anfühlt?“'],
-    next: 'Zweifel konkret ausräumen oder ehrlich sagen, wenn es nicht passt.',
+    say: ['Das ist ein wichtiger Punkt. Was genau macht {Sie|dich} unsicher?', 'Was müsste gegeben sein, damit sich das für {Sie|dich} gut anfühlt?'],
+    why: 'Zweifel zuerst verstehen – ohne kleinzureden oder Druck aufzubauen.',
+    next: 'Zweifel konkret klären oder ehrlich sagen, wenn {offer} nicht passt.',
     adapt: {
-      'security:high': 'Risiken offen benennen und Absicherung zeigen.',
-      'emotion:high': 'Auf Gefühlsebene bestätigen, Erfahrungen anderer teilen.',
-      'independence:high': 'Fakten geben und betonen, dass die Entscheidung frei bleibt.',
+      'security:high': { say: 'Verständlich. Ich zeige {Ihnen|dir}, wie {Sie|du} abgesichert {sind|bist}, falls etwas nicht passt.', why: 'Risiko offen benennen, Absicherung zeigen.' },
+      'emotion:high': { say: 'Das kann ich gut verstehen – vielen ging es am Anfang genauso.', why: 'Auf Gefühlsebene bestätigen.' },
+      'independence:high': { say: 'Klar – {Sie entscheiden|du entscheidest}. Ich gebe {Ihnen|dir} nur die Fakten, die {Sie|du} dafür {brauchen|brauchst}.', why: 'Entscheidungsfreiheit betonen.' },
     },
   },
   compare: {
-    headline: 'Vergleich unterstützen – fair und souverän',
-    do: ['Kriterien gemeinsam festlegen', 'Stärken und Grenzen ehrlich benennen', 'Vergleichshilfe anbieten'],
-    avoid: 'Keine Wettbewerber schlechtreden.',
-    phrases: ['„Sehr vernünftig. Nach welchen Kriterien wollen Sie vergleichen?“', '„Ich gebe Ihnen gern eine Checkliste mit – auch für andere Angebote.“'],
-    next: 'Vergleichskriterien festhalten und Rückmeldetermin vereinbaren.',
+    say: ['Sehr vernünftig. Nach welchen Kriterien {wollen Sie|willst du} vergleichen?', 'Ich gebe {Ihnen|dir} gern eine Checkliste mit – die passt auch für andere Angebote.'],
+    why: 'Vergleichen ist legitim – faire Kriterien schaffen Vertrauen.',
+    next: 'Kriterien festhalten und einen Rückmeldetermin vereinbaren.',
     adapt: {
-      'structure:high': 'Eine Vergleichstabelle mit objektiven Kriterien anbieten.',
-      'recognition:high': 'Das Besondere und die Qualität hervorheben.',
-      'independence:high': 'Vergleich ausdrücklich unterstützen – Kontrolle bleibt bei der Person.',
+      'structure:high': { say: 'Soll ich {Ihnen|dir} eine kleine Vergleichstabelle mit objektiven Kriterien schicken?', why: 'Vergleichstabelle anbieten.' },
+      'recognition:high': { say: 'Achten {Sie|du} beim Vergleich auch auf die Qualität im Detail – da liegt der Unterschied.', why: 'Qualität hervorheben.' },
     },
   },
   price: {
-    headline: 'Preis klar nennen – im Kontext des Nutzens',
-    do: ['Preis direkt und selbstbewusst nennen', 'Nutzen und Gegenwert danebenstellen', 'Optionen/Varianten zeigen'],
-    avoid: 'Nicht herumdrucksen, keine künstliche Verknappung.',
-    phrases: ['„Der Preis liegt bei … – dafür bekommen Sie …“', '„Welche Variante passt am besten zu Ihrem Rahmen?“'],
-    next: 'Reaktion abwarten, Einwände aufnehmen.',
+    say: ['Der Preis für {offer} liegt bei {price} – dafür {bekommen Sie|bekommst du}: {benefit}.', 'Welche Variante passt am besten zu {Ihrem|deinem} Rahmen?'],
+    why: 'Die Preisfrage ist ein Kaufsignal – klar nennen und sofort mit dem Nutzen verbinden.',
+    next: 'Reaktion abwarten, dann Einwände oder Fragen aufnehmen.',
     adapt: {
-      'directness:high': 'Ohne Umschweife: Zahl zuerst, Begründung danach.',
-      'security:high': 'Konditionen, Laufzeit und Ausstieg transparent darlegen.',
-      'recognition:high': 'Premium-Option als Anker zeigen, ohne Druck.',
+      'directness:high': { say: '{price}. Und das ist drin: {benefit}.', why: 'Zahl zuerst, Begründung danach.' },
+      'security:high': { say: '{price} – mit klaren Konditionen, ich zeige {Ihnen|dir} Laufzeit und Ausstieg.', why: 'Konditionen transparent darlegen.' },
     },
   },
   time: {
-    headline: 'Bedenkzeit respektieren – Verbindlichkeit schaffen',
-    do: ['Bedenkzeit ausdrücklich gutheißen', 'Fragen, welche Infos für die Entscheidung fehlen', 'Konkreten Rückmeldetermin vereinbaren'],
-    avoid: 'Keinen künstlichen Zeitdruck aufbauen.',
-    phrases: ['„Natürlich – das ist eine Entscheidung, die gut überlegt sein will.“', '„Was brauchen Sie noch von mir, um gut entscheiden zu können?“', '„Passt es, wenn ich mich am … kurz melde?“'],
-    next: 'Zusammenfassung schicken und Folgetermin eintragen.',
+    say: ['Natürlich – das will gut überlegt sein. Was {brauchen Sie|brauchst du} noch von mir, um gut entscheiden zu können?', 'Passt es, wenn ich mich am … kurz melde?'],
+    why: 'Bedenkzeit respektieren – Verbindlichkeit über einen konkreten Termin statt über Druck.',
+    next: 'Zusammenfassung schicken und Rückmeldetermin eintragen.',
     adapt: {
-      'energy:low': 'Viel Raum lassen, Rückmeldung eher in einer Woche ansetzen.',
-      'independence:low': 'Anbieten, mit Partner/Team gemeinsam zu sprechen.',
-      'structure:high': 'Eine schriftliche Entscheidungsgrundlage mitgeben.',
+      'independence:low': { say: 'Möchten {Sie|du} das noch mit jemandem besprechen? Gern auch in einem gemeinsamen Termin.', why: 'Weitere Entscheider einbeziehen.' },
+      'structure:high': { say: 'Ich schicke {Ihnen|dir} eine kurze schriftliche Entscheidungsgrundlage.', why: 'Schriftliche Grundlage mitgeben.' },
     },
   },
   ready: {
-    headline: 'Abschluss einleiten – klar und einfach',
-    do: ['Kurz zusammenfassen, was vereinbart wird', 'Nächsten Schritt konkret machen', 'Danke sagen'],
-    avoid: 'Jetzt nicht mehr neue Themen aufmachen.',
-    phrases: ['„Prima – dann halten wir fest: …“', '„Der nächste Schritt ist ganz einfach: …“'],
-    next: 'Vereinbarung schriftlich bestätigen, Termin eintragen.',
+    say: ['Prima – dann halten wir fest: {offer}, Start zum vereinbarten Termin.', 'Der nächste Schritt ist ganz einfach: …'],
+    why: 'Die Person ist bereit – jetzt einfach und klar abschließen, keine neuen Themen.',
+    next: 'Vereinbarung schriftlich bestätigen und Termin eintragen.',
     adapt: {
-      'emotion:high': 'Freude teilen und persönliche Begleitung zusagen.',
-      'structure:high': 'Ablaufplan mit Terminen übergeben.',
-      'recognition:high': 'Die gute Entscheidung wertschätzen.',
+      'emotion:high': { say: 'Ich freue mich sehr! Ich begleite {Sie|dich} persönlich beim Start.', why: 'Freude teilen, Begleitung zusagen.' },
+      'structure:high': { say: 'Ich schicke {Ihnen|dir} heute noch den Ablaufplan mit allen Terminen.', why: 'Ablaufplan übergeben.' },
     },
   },
   no: {
-    headline: 'Nein respektieren – freundlich beenden',
-    do: ['Das Nein ohne Diskussion akzeptieren', 'Für das Gespräch danken', 'Optional: Erlaubnis für späteren Kontakt erfragen'],
-    avoid: 'Kein Nachbohren, keine Umstimmungsversuche.',
-    phrases: ['„Danke für Ihre Offenheit – das respektiere ich selbstverständlich.“', '„Darf ich mich in ein paar Monaten noch einmal melden, oder lieber nicht?“'],
-    next: 'Status auf „kein Interesse“ setzen – keine weitere Ansprache ohne Zustimmung.',
+    say: ['Danke für {Ihre|deine} Offenheit – das respektiere ich selbstverständlich.', 'Darf ich mich in ein paar Monaten noch einmal melden – oder lieber nicht?'],
+    why: 'Ein Nein ist ein Nein. Respekt hält die Beziehung offen.',
+    next: 'Status auf „Kein Interesse“ – keine weitere Ansprache ohne Zustimmung.',
     adapt: {},
   },
 }
 
-export interface LiveRecommendation {
+export interface LiveCoaching {
   signal: SignalInfo
-  headline: string
-  do: string[]
-  avoid: string
-  phrases: string[]
+  /** Alternativen für „Was sagen?“ – die erste ist die Empfehlung. */
+  say: string[]
+  why: { text: string; basis: Basis }
+  /** Ergänzender Profil-Hinweis (Beobachtung oder symbolische Hypothese). */
+  hint?: { text: string; basis: Basis }
   next: string
-  tailored: string[]
 }
 
-export function recommend(signal: LiveSignal, drivers: Driver[], offer: OfferContext): LiveRecommendation {
+/**
+ * Live-Empfehlung auf genau drei Kernaussagen reduziert: Was sagen? Warum? Was als Nächstes?
+ * Grundlage ist die tatsächliche Reaktion; beobachtete Stilmerkmale verfeinern die Formulierung,
+ * symbolische Deutungen liefern nur eine nachrangige Alternative.
+ */
+export function coach(signal: LiveSignal, drivers: Driver[], offer: OfferContext, address: Address = 'sie'): LiveCoaching {
   const r = RESPONSES[signal]
-  const tailored = drivers
-    .map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey])
-    .filter((x): x is string => !!x)
+  const f = (t: string) => capFirst(fill(t, offer, address))
+  const observed = drivers.filter((d) => d.basis === 'observed').map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey]).find(Boolean)
+  const symbolic = drivers.filter((d) => d.basis !== 'observed').map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey]).find(Boolean)
+  const say = [...(observed ? [observed.say] : []), ...r.say, ...(symbolic ? [symbolic.say] : [])]
   return {
     signal: SIGNAL_BY_ID[signal],
-    headline: r.headline,
-    do: r.do,
-    avoid: r.avoid,
-    phrases: r.phrases.map((p) => fill(p, offer)),
-    next: fill(r.next, offer),
-    tailored,
+    say: [...new Set(say.map(f))],
+    why: { text: r.why, basis: 'reaction' },
+    hint: observed ? { text: observed.why, basis: 'observed' } : symbolic ? { text: symbolic.why, basis: 'symbolic' } : undefined,
+    next: f(r.next),
   }
 }
 

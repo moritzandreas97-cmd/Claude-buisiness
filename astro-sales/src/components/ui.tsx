@@ -103,6 +103,7 @@ export function SourceBadge({ source }: { source: Source }) {
 
 const BASIS_STYLE: Record<Basis, string> = {
   stated: 'text-gold border-gold/50 bg-gold/10',
+  reaction: 'text-white border-cyan/80 bg-cyan/25',
   observed: 'text-cyan border-cyan/50 bg-cyan/10',
   symbolic: 'text-violet border-violet/50 bg-violet/10',
   general: 'text-white/50 border-white/15',

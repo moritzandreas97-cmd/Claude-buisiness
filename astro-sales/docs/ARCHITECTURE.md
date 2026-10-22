@@ -35,15 +35,18 @@ src/
 │  ├─ behavior/                Separate Engine für beobachtetes Verhalten
 │  │  └─ observations.ts       Beobachtungen → Dimensions-Overrides (Vorrang!)
 │  ├─ strategy/                Phase 3
-│  │  ├─ strategy.ts           Gesprächsstrategie aus Profil + Fakten
-│  │  └─ live.ts               Live-Signale → sofortige Empfehlungen
+│  │  ├─ strategy.ts           Strategie aus Profil, Fakten, Produkt, Phase, Reaktionen
+│  │  ├─ phrases.ts            Sprechbare Formulierungen (Einstieg, Nutzen, Rückfragen, Abschluss)
+│  │  ├─ playbook.ts           Stilregeln je Dimension (hoch/niedrig)
+│  │  ├─ address.ts            Du/Sie-Doppelformen {Sie|du}
+│  │  └─ live.ts               Live-Signale → Was sagen? / Warum? / Was als Nächstes?
 │  └─ acquisition/             Phase 4
-│     └─ acquisition.ts        Wer × Wo × Ziel → 6-Schritt-Leitfaden mit Alternativen
+│     └─ acquisition.ts        Wer × Wo × Ziel × Produkt → Sofort-Ansprache + 6-Schritt-Leitfaden
 ├─ store/                      Phase 5 – lokale Persistenz + React-Hooks
 ├─ ai/                         Optionaler KI-Anschluss (Provider-Interface)
 ├─ integration/neural.ts       Adapter + Event-Bus für späteres NEURAL-System
 ├─ components/                 Wiederverwendbare UI (Profilrad, Panels, Chips)
-└─ views/                      Profiler, Strategie, Live, Akquise, Kunden, Einstellungen
+└─ views/                      Profiler, Strategie, Live, Akquise, Angebote, Kunden, Einstellungen
 ```
 
 ## Grundprinzipien
@@ -55,8 +58,8 @@ src/
 2. **Nachvollziehbarkeit.** Jeder Dimensionswert ist eine Summe einzelner
    Regelbeiträge („Löwe als Sonne: Präsenz +3“), die im UI einsehbar sind.
    Regeln und Systemgewichte sind in den Einstellungen änderbar.
-3. **Beobachtung schlägt Symbolik.** Beobachtetes Verhalten und geäußerte
-   Wünsche überschreiben symbolische Werte und stehen in der Strategie vorne.
+3. **Realität schlägt Symbolik.** Priorität jeder Empfehlung: Kundenaussage → tatsächliche
+   Kundenreaktion (Live-Signale) → Beobachtung → symbolische Hypothese → allgemein.
 4. **Ethik und Recht.** Keine Ausnutzung von Schwächen, keine Massenansprache,
    ein Nein beendet den Leitfaden. DSGVO: Rechtsgrundlage pro Kunde,
    Datenminimierung, Herkunft je Info, Export und Löschen.
