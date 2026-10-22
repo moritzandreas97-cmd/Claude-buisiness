@@ -123,6 +123,7 @@ export function AcquisitionView() {
                   className={cx('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all active:scale-95',
                     on ? 'border-gold/70 bg-gold/15 text-gold shadow-[0_0_20px_-6px] shadow-gold/40' : 'border-white/10 bg-white/[0.02] text-white/70 hover:border-white/25')}>
                   <Package size={15} />{p.name || 'Ohne Namen'}{p.price && <span className="font-mono text-[11px] opacity-70">{p.price}</span>}
+                  {p.catalog && <span className={cx('rounded px-1.5 font-mono text-[9px] uppercase', p.catalog.status.availability === 'historical' ? 'bg-rose/15 text-rose' : 'bg-gold/10 text-gold/80')}>{p.catalog.status.availability === 'historical' ? 'historisch' : 'Test · prüfen'}</span>}
                 </button>
               )
             })}

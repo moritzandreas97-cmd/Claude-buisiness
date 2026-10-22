@@ -7,6 +7,7 @@ import { BasisBadge, Button, Panel, cx } from '../components/ui'
 import { ObservationPicker } from '../components/FactsEditor'
 import { PHASE_LABEL, SIGNALS, SIGNAL_BY_ID, coach, liveState, type LiveSignal, type Phase } from '../engine/strategy/live'
 import { neural } from '../integration/neural'
+import { ProductStatus } from '../components/ProductStatus'
 
 const PHASES: Phase[] = ['opening', 'discovery', 'presentation', 'objection', 'closing']
 
@@ -78,6 +79,7 @@ export function LiveView() {
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.25em] text-white/40">Live · {PHASE_LABEL[state.phase === 'ended' ? 'ended' : strategy.focus.phase]}</p>
                 <h1 className="truncate text-base font-semibold sm:text-lg">{c.name || 'Ohne Kundenprofil'} <span className="text-white/35">×</span> <span className="text-cyan">{product.name}</span></h1>
+                <ProductStatus offer={product} className="mt-1" />
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
@@ -126,7 +128,7 @@ export function LiveView() {
               <div className="mt-2"><BasisBadge basis={card.why.basis} /></div>
               {card.hint && (
                 <p className="mt-2 hidden border-t border-white/5 pt-2 text-xs text-white/55 sm:block">
-                  <span className={card.hint.basis === 'observed' ? 'text-cyan' : 'text-violet'}>{card.hint.basis === 'observed' ? 'Beobachtung: ' : 'Profil-Hypothese: '}</span>{card.hint.text}
+                  <span className={card.hint.basis === 'observed' ? 'text-cyan' : card.hint.basis === 'product' ? 'text-gold' : 'text-violet'}>{card.hint.basis === 'observed' ? 'Beobachtung: ' : card.hint.basis === 'product' ? '' : 'Profil-Hypothese: '}</span>{card.hint.text}
                 </p>
               )}
             </section>

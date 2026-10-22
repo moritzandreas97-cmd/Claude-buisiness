@@ -1,5 +1,6 @@
 import type { Driver, OfferContext } from '../strategy/strategy'
-import { fill } from '../strategy/strategy'
+import { canUse, fill } from '../strategy/strategy'
+import { AVAILABILITY_LABEL, DETAIL_LABEL } from '../catalog/types'
 import { capFirst, type Address } from '../strategy/address'
 import { PLAYBOOK } from '../strategy/playbook'
 
@@ -169,6 +170,7 @@ function transitions(g: Goal, c: Channel): Alternative[] {
   const remote = isWritten(c)
   const base: Alternative[] = [
     { id: 'bridge', title: 'Brücke zum Bedarf', text: 'Den genannten Punkt aufgreifen und Lösung andeuten.', example: 'Genau dafür gibt es {offer}: {benefit}. Soll ich kurz erzählen, wie das funktioniert?' },
+    { id: 'scope', title: 'Leistungsumfang zeigen', text: 'Sachlich zeigen, was enthalten ist, und die Person selbst urteilen lassen.', example: 'Darf ich {Ihnen|dir} kurz zeigen, was bei {offer} enthalten ist? Dann {können Sie|kannst du} selbst einschätzen, ob es passt.' },
     { id: 'story', title: 'Kurzes Beispiel', text: 'Eine echte Erfahrung (anonymisiert) erzählen.', example: 'Eine Kundin hatte genau dieselbe Frage – mit {offer} hat sie heute: {benefit2}.' },
   ]
   if (g === 'appointment' || g === 'sale' || g === 'present') {
@@ -264,7 +266,22 @@ export function buildAcquisition(
   if (offer.audience.trim()) {
     comp.splice(1, 0, { level: 'info', text: `Zielgruppe von ${offer.name || 'diesem Produkt'}: ${offer.audience}. Nur ansprechen, wenn ein echter Bezug besteht.` })
   }
-  return { steps: steps.map((s) => ({ ...s, alternatives: s.alternatives.map(fillAlt) })), compliance: comp }
+  const cat = offer.catalog
+  if (cat) {
+    const flags = [cat.isTestData ? 'Testdaten' : '', DETAIL_LABEL[cat.status.details], AVAILABILITY_LABEL[cat.status.availability]].filter(Boolean).join(' · ')
+    comp.splice(1, 0, cat.status.availability === 'historical'
+      ? { level: 'block', text: `${offer.name}: ${flags}. Dieses Angebot ist nicht mehr aktiv – nicht anbieten.` }
+      : { level: 'warn', text: `${offer.name}: ${flags}. Preis, Leistungsumfang und Verfügbarkeit vor der Ansprache auf der offiziellen Angebotsseite prüfen.` })
+  }
+  // Echte Angebote: keine erfundenen Kundenbeispiele, keine Sätze mit unbelegten Vorteilen.
+  const allowed = (a: Alternative) => canUse(a.example ?? '', offer) && !(cat && a.id === 'story')
+  return {
+    steps: steps.map((s) => {
+      const kept = s.alternatives.filter(allowed)
+      return { ...s, alternatives: (kept.length ? kept : s.alternatives.filter((a) => !a.example)).map(fillAlt) }
+    }),
+    compliance: comp,
+  }
 }
 
 /** Nach „Hallo …,“ geht es im Deutschen klein weiter – außer bei Anredepronomen und Substantiven. */

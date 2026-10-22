@@ -18,6 +18,7 @@ npm run build      # Produktionsbuild nach dist/
 | Bereich | Funktion |
 | --- | --- |
 | **Angebote** | Produkte mit Name, Beschreibung, Vorteilen, Zielgruppe und Preis. Das aktive Produkt (Kopfzeile) fließt in Strategie, Live-Modus und Akquise ein. |
+| **Kataloge** | RELIFE-Testkatalog mit 7 Angeboten, Prüfstatus („Details prüfen“, „Nicht verifiziert“, „Historisch“), Quellen und Aktualisierung per JSON. Strenge Faktenregel: keine erfundenen Vorteile, Beispiele oder Zusagen. Siehe [`docs/CATALOG.md`](docs/CATALOG.md). |
 | **Anrede** | Globale Du-/Sie-Umschaltung in der Kopfzeile. Alle kundengerichteten Sätze liegen als Doppelform `{Sie-Form|Du-Form}` vor. |
 | **Astro Profiler** | Animiertes Profilrad mit 10 Dimensionen und 5 Systemen. Modi: Automatisch, Hybrid, Manuell. Leere Angaben bleiben leer. |
 | **Berechnung** | Sonne/Mond/Aszendent über `astronomy-engine`, Zeitzonen inkl. historischer Sommerzeit, Lebenszahl mit Meisterzahlen, chinesisches Tier/Element (Mondneujahr oder Lichun). Mehrdeutigkeiten (z. B. Mondwechsel ohne Geburtszeit) werden als „möglich: A oder B“ angezeigt statt geraten. |

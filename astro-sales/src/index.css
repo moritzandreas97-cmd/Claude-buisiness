@@ -94,3 +94,6 @@ select.field option { background: #0a0c1d; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Grid-Spalten dürfen schmaler als ihr längster Text werden (lange Produktnamen, Links). */
+main .grid > * { min-width: 0; }

@@ -1,4 +1,4 @@
-import { fill, type Basis, type Driver, type OfferContext } from './strategy'
+import { canUse, fill, type Basis, type Driver, type OfferContext } from './strategy'
 import { capFirst, type Address } from './address'
 
 export type LiveSignal = 'interest' | 'details' | 'doubt' | 'compare' | 'price' | 'time' | 'ready' | 'no'
@@ -35,7 +35,8 @@ interface Response {
   /** Was als Nächstes? */
   next: string
   /** Stilvarianten je prägender Dimension. */
-  adapt: Partial<Record<AdaptKey, { say: string; why: string }>>
+  /** `claim`: unterstellt Fakten (Absicherung, Konditionen, Qualität) – nicht bei Katalogprodukten. */
+  adapt: Partial<Record<AdaptKey, { say: string; why: string; claim?: true }>>
 }
 
 const RESPONSES: Record<LiveSignal, Response> = {
@@ -56,7 +57,7 @@ const RESPONSES: Record<LiveSignal, Response> = {
     adapt: {
       'structure:high': { say: 'Ich schicke {Ihnen|dir} die Details auch schriftlich – mit Zahlen und Ablauf.', why: 'Zahlen und Belege schriftlich nachreichen.' },
       'structure:low': { say: 'Am einfachsten zeige ich es {Ihnen|dir} kurz an einem Beispiel.', why: 'Detail mit einem Bild statt einer Tabelle erklären.' },
-      'security:high': { say: 'Wichtig für {Sie|dich}: Die Bedingungen sind transparent – ich zeige {Ihnen|dir} genau, was gilt.', why: 'Absicherung transparent machen.' },
+      'security:high': { say: 'Wichtig für {Sie|dich}: Die Bedingungen sind transparent – ich zeige {Ihnen|dir} genau, was gilt.', why: 'Absicherung transparent machen.', claim: true },
     },
   },
   doubt: {
@@ -64,7 +65,7 @@ const RESPONSES: Record<LiveSignal, Response> = {
     why: 'Zweifel zuerst verstehen – ohne kleinzureden oder Druck aufzubauen.',
     next: 'Zweifel konkret klären oder ehrlich sagen, wenn {offer} nicht passt.',
     adapt: {
-      'security:high': { say: 'Verständlich. Ich zeige {Ihnen|dir}, wie {Sie|du} abgesichert {sind|bist}, falls etwas nicht passt.', why: 'Risiko offen benennen, Absicherung zeigen.' },
+      'security:high': { say: 'Verständlich. Ich zeige {Ihnen|dir}, wie {Sie|du} abgesichert {sind|bist}, falls etwas nicht passt.', why: 'Risiko offen benennen, Absicherung zeigen.', claim: true },
       'emotion:high': { say: 'Das kann ich gut verstehen – vielen ging es am Anfang genauso.', why: 'Auf Gefühlsebene bestätigen.' },
       'independence:high': { say: 'Klar – {Sie entscheiden|du entscheidest}. Ich gebe {Ihnen|dir} nur die Fakten, die {Sie|du} dafür {brauchen|brauchst}.', why: 'Entscheidungsfreiheit betonen.' },
     },
@@ -75,7 +76,7 @@ const RESPONSES: Record<LiveSignal, Response> = {
     next: 'Kriterien festhalten und einen Rückmeldetermin vereinbaren.',
     adapt: {
       'structure:high': { say: 'Soll ich {Ihnen|dir} eine kleine Vergleichstabelle mit objektiven Kriterien schicken?', why: 'Vergleichstabelle anbieten.' },
-      'recognition:high': { say: 'Achten {Sie|du} beim Vergleich auch auf die Qualität im Detail – da liegt der Unterschied.', why: 'Qualität hervorheben.' },
+      'recognition:high': { say: 'Achten {Sie|du} beim Vergleich auch auf die Qualität im Detail – da liegt der Unterschied.', why: 'Qualität hervorheben.', claim: true },
     },
   },
   price: {
@@ -84,7 +85,7 @@ const RESPONSES: Record<LiveSignal, Response> = {
     next: 'Reaktion abwarten, dann Einwände oder Fragen aufnehmen.',
     adapt: {
       'directness:high': { say: '{price}. Und das ist drin: {benefit}.', why: 'Zahl zuerst, Begründung danach.' },
-      'security:high': { say: '{price} – mit klaren Konditionen, ich zeige {Ihnen|dir} Laufzeit und Ausstieg.', why: 'Konditionen transparent darlegen.' },
+      'security:high': { say: '{price} – mit klaren Konditionen, ich zeige {Ihnen|dir} Laufzeit und Ausstieg.', why: 'Konditionen transparent darlegen.', claim: true },
     },
   },
   time: {
@@ -131,14 +132,30 @@ export interface LiveCoaching {
 export function coach(signal: LiveSignal, drivers: Driver[], offer: OfferContext, address: Address = 'sie'): LiveCoaching {
   const r = RESPONSES[signal]
   const f = (t: string) => capFirst(fill(t, offer, address))
-  const observed = drivers.filter((d) => d.basis === 'observed').map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey]).find(Boolean)
-  const symbolic = drivers.filter((d) => d.basis !== 'observed').map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey]).find(Boolean)
-  const say = [...(observed ? [observed.say] : []), ...r.say, ...(symbolic ? [symbolic.say] : [])]
+  const strict = !!offer.catalog
+  const usable = (a: { say: string; claim?: true } | undefined) => !!a && !(strict && a.claim) && canUse(a.say, offer)
+  const adaptFor = (ds: Driver[]) => ds.map((d) => r.adapt[`${d.id}:${d.side}` as AdaptKey]).find(usable)
+  const observed = adaptFor(drivers.filter((d) => d.basis === 'observed'))
+  const symbolic = adaptFor(drivers.filter((d) => d.basis !== 'observed'))
+  // Produktspezifische, transparente Antwort auf genau dieses Signal (aus dem Katalog).
+  const product = offer.catalog?.objections.find((o) => o.signal === signal)
+  const base = r.say.filter((t) => canUse(t, offer))
+  const fallback = signal === 'price' && !base.length
+    ? ['Der Preis für {offer} liegt bei {price}. Was genau enthalten ist, sehen wir uns gemeinsam auf der Angebotsseite an.']
+    : []
+  const say = [
+    ...(observed ? [observed.say] : []),
+    ...(product ? [product.answer] : []),
+    ...base, ...fallback,
+    ...(symbolic ? [symbolic.say] : []),
+  ]
   return {
     signal: SIGNAL_BY_ID[signal],
     say: [...new Set(say.map(f))],
     why: { text: r.why, basis: 'reaction' },
-    hint: observed ? { text: observed.why, basis: 'observed' } : symbolic ? { text: symbolic.why, basis: 'symbolic' } : undefined,
+    hint: observed ? { text: observed.why, basis: 'observed' }
+      : product ? { text: `Produktdaten: Antwort auf „${f(product.objection)}“`, basis: 'product' }
+      : symbolic ? { text: symbolic.why, basis: 'symbolic' } : undefined,
     next: f(r.next),
   }
 }

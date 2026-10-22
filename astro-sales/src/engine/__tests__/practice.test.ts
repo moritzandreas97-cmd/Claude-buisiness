@@ -96,7 +96,7 @@ describe('Kundenreaktionen vor Symbolik', () => {
     expect(s.reactions[0].basis).toBe('reaction')
   })
   it('symbolische Items stehen nie vor Reaktionen oder Beobachtungen', () => {
-    const rank = { stated: 0, reaction: 1, observed: 2, symbolic: 3, general: 4 }
+    const rank = { stated: 0, reaction: 1, observed: 2, product: 3, symbolic: 4, general: 5 }
     const s = strategyFor({ reactions: ['ready', 'doubt'], observed: ['decidesFast'] })
     for (const list of [s.opener, s.benefits, s.questions, s.closings, s.nextStep]) {
       const ranks = list.map((i) => rank[i.basis])

@@ -8,6 +8,7 @@ import { BasisBadge, Button, Disclaimer, Panel, Segmented, copyText, cx } from '
 import { FactList, ObservationPicker } from '../components/FactsEditor'
 import type { Item, StrategyPhase } from '../engine/strategy/strategy'
 import { PHASE_LABEL } from '../engine/strategy/live'
+import { ProductStatus } from '../components/ProductStatus'
 import { DIM_BY_ID } from '../engine/symbolic/dimensions'
 import { AI_SYSTEM_PROMPT, createProvider } from '../ai/provider'
 
@@ -59,6 +60,7 @@ function PhaseFocusPanel() {
             <span className="text-white/40"> × </span>
             <span className="text-cyan">{product.name || 'Produkt'}</span>
           </h1>
+          <ProductStatus offer={product} link className="mt-1.5" />
         </div>
         <div className="scrollbar-thin -mx-1 max-w-full overflow-x-auto px-1 pb-1">
           <Segmented value={phase} options={PHASES} onChange={(p) => store.setPhase(p)} />

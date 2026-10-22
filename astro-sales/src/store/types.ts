@@ -84,6 +84,8 @@ export interface Settings {
   address: Address
   products: Product[]
   activeProductId: string
+  /** Kataloge, die schon einmal angelegt wurden – gelöschte Einträge kommen nicht ungefragt zurück. */
+  seededCatalogs: string[]
   rules: RuleSet
   calc: CalcOptions
   ai: AIConfig

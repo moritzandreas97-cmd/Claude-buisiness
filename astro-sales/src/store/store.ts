@@ -5,6 +5,9 @@ import { DEFAULT_RULES } from '../engine/symbolic/rules'
 import { mergeWithObservations } from '../engine/behavior/observations'
 import { buildStrategy, DEFAULT_OFFER, type OfferContext } from '../engine/strategy/strategy'
 import { liveState, type LiveSignal } from '../engine/strategy/live'
+import { mergeCatalog } from '../engine/catalog/catalog'
+import type { CatalogDefinition } from '../engine/catalog/types'
+import { BUILT_IN_CATALOGS } from '../data/catalogs'
 import { DEFAULT_AI } from '../ai/provider'
 import { DEFAULT_NEURAL, neural } from '../integration/neural'
 import { DRAFT_ID, type Customer, type LiveSession, type Product, type Settings, type StrategyPhase } from './types'
@@ -48,15 +51,28 @@ const EXAMPLE_PRODUCT: Partial<OfferContext> = {
 
 const defaultSettings = (): Settings => {
   const example = newProduct(EXAMPLE_PRODUCT)
-  return {
+  return withBuiltInCatalogs({
   address: 'sie',
   products: [example],
   activeProductId: example.id,
+  seededCatalogs: [],
   rules: structuredClone(DEFAULT_RULES),
   calc: { ...DEFAULT_CALC_OPTIONS },
   ai: { ...DEFAULT_AI },
   neural: { ...DEFAULT_NEURAL },
+  })
+}
+
+/** Legt eingebaute Testkataloge einmalig an (auch für bestehende Installationen). */
+function withBuiltInCatalogs(settings: Settings): Settings {
+  let { products } = settings
+  const seeded = [...settings.seededCatalogs]
+  for (const def of BUILT_IN_CATALOGS) {
+    if (seeded.includes(def.id)) continue
+    products = mergeCatalog(products, def, uid).products
+    seeded.push(def.id)
   }
+  return { ...settings, products, seededCatalogs: seeded }
 }
 
 const FALLBACK_PRODUCT: Product = { id: 'fallback', ...DEFAULT_OFFER }
@@ -87,13 +103,14 @@ function load(): State {
     const base = defaultSettings()
     const { offer: _legacy, ...savedSettings } = parsed.settings ?? {}
     void _legacy
-    return {
+    const loaded: State = {
       customers: (parsed.customers ?? []).map((c) => ({ ...newCustomer(c.id), ...c })),
       draft: { ...newCustomer(DRAFT_ID), ...parsed.draft },
       activeId: parsed.activeId ?? DRAFT_ID,
       settings: {
         ...base, ...savedSettings,
         ...migrateProducts(parsed.settings, base),
+        seededCatalogs: parsed.settings?.seededCatalogs ?? [],
         calc: { ...base.calc, ...parsed.settings?.calc },
         ai: { ...base.ai, ...parsed.settings?.ai },
         neural: { ...base.neural, ...parsed.settings?.neural },
@@ -102,6 +119,7 @@ function load(): State {
       phase: parsed.phase ?? 'opening',
       live: parsed.live ?? emptyLive(),
     }
+    return { ...loaded, settings: withBuiltInCatalogs(loaded.settings) }
   } catch {
     return fallback
   }
@@ -192,6 +210,14 @@ export const store = {
     if (state.settings.products.length <= 1) return
     const products = state.settings.products.filter((p) => p.id !== id)
     store.updateSettings({ products, activeProductId: state.settings.activeProductId === id ? products[0]?.id ?? '' : state.settings.activeProductId })
+  },
+
+  /** Katalog anlegen oder aus einer (offiziellen) Quelle aktualisieren – Zuordnung über die SKU. */
+  importCatalog(def: CatalogDefinition) {
+    const res = mergeCatalog(state.settings.products, def, uid)
+    const seeded = state.settings.seededCatalogs.includes(def.id) ? state.settings.seededCatalogs : [...state.settings.seededCatalogs, def.id]
+    store.updateSettings({ products: res.products, seededCatalogs: seeded })
+    return { added: res.added, updated: res.updated }
   },
 
   setPhase(phase: StrategyPhase) {

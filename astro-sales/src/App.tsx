@@ -44,7 +44,16 @@ function ProductSwitch() {
     <label className="relative flex min-w-0 flex-1 items-center sm:max-w-56 sm:flex-none">
       <span className="sr-only">Aktives Produkt</span>
       <select value={active.id} onChange={(e) => store.setActiveProduct(e.target.value)} className={cx(SELECT_CLS, 'border-cyan/20')}>
-        {products.map((p) => <option key={p.id} value={p.id}>◆ {p.name || 'Ohne Namen'}</option>)}
+        <optgroup label="Eigene Produkte">
+          {products.filter((p) => !p.catalog).map((p) => <option key={p.id} value={p.id}>◆ {p.name || 'Ohne Namen'}</option>)}
+        </optgroup>
+        {[...new Set(products.filter((p) => p.catalog).map((p) => p.catalog!.catalogId))].map((cid) => (
+          <optgroup key={cid} label={cid === 'relife-test' ? 'RELIFE-Testkatalog' : cid}>
+            {products.filter((p) => p.catalog?.catalogId === cid).map((p) => (
+              <option key={p.id} value={p.id}>◇ {p.name}{p.catalog!.status.availability === 'historical' ? ' (historisch)' : ''}</option>
+            ))}
+          </optgroup>
+        ))}
       </select>
       <ChevronDown size={14} className="pointer-events-none absolute right-3 text-white/40" />
     </label>
