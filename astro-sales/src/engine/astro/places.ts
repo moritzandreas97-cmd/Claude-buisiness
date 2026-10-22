@@ -1,0 +1,120 @@
+export interface Place {
+  name: string
+  country: string
+  lat: number
+  lon: number
+  tz: string
+}
+
+/**
+ * Offline-Ortsliste – bewusst ohne externen Geocoding-Dienst (Datenschutz).
+ * Nicht gelistete Orte können über Koordinaten + Zeitzone manuell erfasst werden.
+ */
+export const PLACES: Place[] = [
+  // Deutschland
+  { name: 'Berlin', country: 'DE', lat: 52.52, lon: 13.405, tz: 'Europe/Berlin' },
+  { name: 'Hamburg', country: 'DE', lat: 53.551, lon: 9.994, tz: 'Europe/Berlin' },
+  { name: 'München', country: 'DE', lat: 48.137, lon: 11.575, tz: 'Europe/Berlin' },
+  { name: 'Köln', country: 'DE', lat: 50.938, lon: 6.96, tz: 'Europe/Berlin' },
+  { name: 'Frankfurt am Main', country: 'DE', lat: 50.11, lon: 8.682, tz: 'Europe/Berlin' },
+  { name: 'Stuttgart', country: 'DE', lat: 48.776, lon: 9.183, tz: 'Europe/Berlin' },
+  { name: 'Düsseldorf', country: 'DE', lat: 51.227, lon: 6.774, tz: 'Europe/Berlin' },
+  { name: 'Leipzig', country: 'DE', lat: 51.34, lon: 12.375, tz: 'Europe/Berlin' },
+  { name: 'Dortmund', country: 'DE', lat: 51.514, lon: 7.468, tz: 'Europe/Berlin' },
+  { name: 'Essen', country: 'DE', lat: 51.456, lon: 7.012, tz: 'Europe/Berlin' },
+  { name: 'Bremen', country: 'DE', lat: 53.079, lon: 8.802, tz: 'Europe/Berlin' },
+  { name: 'Dresden', country: 'DE', lat: 51.05, lon: 13.738, tz: 'Europe/Berlin' },
+  { name: 'Hannover', country: 'DE', lat: 52.376, lon: 9.732, tz: 'Europe/Berlin' },
+  { name: 'Nürnberg', country: 'DE', lat: 49.452, lon: 11.077, tz: 'Europe/Berlin' },
+  { name: 'Duisburg', country: 'DE', lat: 51.434, lon: 6.762, tz: 'Europe/Berlin' },
+  { name: 'Bochum', country: 'DE', lat: 51.482, lon: 7.216, tz: 'Europe/Berlin' },
+  { name: 'Wuppertal', country: 'DE', lat: 51.256, lon: 7.15, tz: 'Europe/Berlin' },
+  { name: 'Bielefeld', country: 'DE', lat: 52.03, lon: 8.532, tz: 'Europe/Berlin' },
+  { name: 'Bonn', country: 'DE', lat: 50.737, lon: 7.098, tz: 'Europe/Berlin' },
+  { name: 'Münster', country: 'DE', lat: 51.961, lon: 7.626, tz: 'Europe/Berlin' },
+  { name: 'Mannheim', country: 'DE', lat: 49.487, lon: 8.466, tz: 'Europe/Berlin' },
+  { name: 'Karlsruhe', country: 'DE', lat: 49.007, lon: 8.404, tz: 'Europe/Berlin' },
+  { name: 'Augsburg', country: 'DE', lat: 48.371, lon: 10.898, tz: 'Europe/Berlin' },
+  { name: 'Wiesbaden', country: 'DE', lat: 50.078, lon: 8.24, tz: 'Europe/Berlin' },
+  { name: 'Mainz', country: 'DE', lat: 49.993, lon: 8.247, tz: 'Europe/Berlin' },
+  { name: 'Freiburg im Breisgau', country: 'DE', lat: 47.999, lon: 7.842, tz: 'Europe/Berlin' },
+  { name: 'Kiel', country: 'DE', lat: 54.323, lon: 10.123, tz: 'Europe/Berlin' },
+  { name: 'Rostock', country: 'DE', lat: 54.092, lon: 12.099, tz: 'Europe/Berlin' },
+  { name: 'Erfurt', country: 'DE', lat: 50.978, lon: 11.029, tz: 'Europe/Berlin' },
+  { name: 'Magdeburg', country: 'DE', lat: 52.12, lon: 11.628, tz: 'Europe/Berlin' },
+  { name: 'Potsdam', country: 'DE', lat: 52.391, lon: 13.064, tz: 'Europe/Berlin' },
+  { name: 'Saarbrücken', country: 'DE', lat: 49.24, lon: 6.997, tz: 'Europe/Berlin' },
+  { name: 'Regensburg', country: 'DE', lat: 49.013, lon: 12.102, tz: 'Europe/Berlin' },
+  { name: 'Würzburg', country: 'DE', lat: 49.791, lon: 9.953, tz: 'Europe/Berlin' },
+  { name: 'Aachen', country: 'DE', lat: 50.776, lon: 6.084, tz: 'Europe/Berlin' },
+  { name: 'Heidelberg', country: 'DE', lat: 49.398, lon: 8.672, tz: 'Europe/Berlin' },
+  // Österreich / Schweiz / Nachbarn
+  { name: 'Wien', country: 'AT', lat: 48.208, lon: 16.373, tz: 'Europe/Vienna' },
+  { name: 'Graz', country: 'AT', lat: 47.07, lon: 15.439, tz: 'Europe/Vienna' },
+  { name: 'Linz', country: 'AT', lat: 48.306, lon: 14.286, tz: 'Europe/Vienna' },
+  { name: 'Salzburg', country: 'AT', lat: 47.809, lon: 13.055, tz: 'Europe/Vienna' },
+  { name: 'Innsbruck', country: 'AT', lat: 47.269, lon: 11.404, tz: 'Europe/Vienna' },
+  { name: 'Zürich', country: 'CH', lat: 47.377, lon: 8.541, tz: 'Europe/Zurich' },
+  { name: 'Bern', country: 'CH', lat: 46.948, lon: 7.447, tz: 'Europe/Zurich' },
+  { name: 'Basel', country: 'CH', lat: 47.559, lon: 7.589, tz: 'Europe/Zurich' },
+  { name: 'Genf', country: 'CH', lat: 46.204, lon: 6.143, tz: 'Europe/Zurich' },
+  { name: 'Luxemburg', country: 'LU', lat: 49.612, lon: 6.13, tz: 'Europe/Luxembourg' },
+  { name: 'Amsterdam', country: 'NL', lat: 52.368, lon: 4.904, tz: 'Europe/Amsterdam' },
+  { name: 'Brüssel', country: 'BE', lat: 50.85, lon: 4.352, tz: 'Europe/Brussels' },
+  { name: 'Paris', country: 'FR', lat: 48.857, lon: 2.352, tz: 'Europe/Paris' },
+  { name: 'London', country: 'GB', lat: 51.507, lon: -0.128, tz: 'Europe/London' },
+  { name: 'Dublin', country: 'IE', lat: 53.35, lon: -6.26, tz: 'Europe/Dublin' },
+  { name: 'Madrid', country: 'ES', lat: 40.417, lon: -3.704, tz: 'Europe/Madrid' },
+  { name: 'Barcelona', country: 'ES', lat: 41.385, lon: 2.173, tz: 'Europe/Madrid' },
+  { name: 'Lissabon', country: 'PT', lat: 38.722, lon: -9.139, tz: 'Europe/Lisbon' },
+  { name: 'Rom', country: 'IT', lat: 41.903, lon: 12.496, tz: 'Europe/Rome' },
+  { name: 'Mailand', country: 'IT', lat: 45.464, lon: 9.19, tz: 'Europe/Rome' },
+  { name: 'Kopenhagen', country: 'DK', lat: 55.676, lon: 12.568, tz: 'Europe/Copenhagen' },
+  { name: 'Stockholm', country: 'SE', lat: 59.329, lon: 18.069, tz: 'Europe/Stockholm' },
+  { name: 'Oslo', country: 'NO', lat: 59.914, lon: 10.752, tz: 'Europe/Oslo' },
+  { name: 'Helsinki', country: 'FI', lat: 60.17, lon: 24.938, tz: 'Europe/Helsinki' },
+  { name: 'Warschau', country: 'PL', lat: 52.23, lon: 21.012, tz: 'Europe/Warsaw' },
+  { name: 'Krakau', country: 'PL', lat: 50.065, lon: 19.945, tz: 'Europe/Warsaw' },
+  { name: 'Prag', country: 'CZ', lat: 50.075, lon: 14.438, tz: 'Europe/Prague' },
+  { name: 'Budapest', country: 'HU', lat: 47.498, lon: 19.04, tz: 'Europe/Budapest' },
+  { name: 'Bukarest', country: 'RO', lat: 44.427, lon: 26.103, tz: 'Europe/Bucharest' },
+  { name: 'Sofia', country: 'BG', lat: 42.698, lon: 23.322, tz: 'Europe/Sofia' },
+  { name: 'Belgrad', country: 'RS', lat: 44.787, lon: 20.457, tz: 'Europe/Belgrade' },
+  { name: 'Zagreb', country: 'HR', lat: 45.815, lon: 15.982, tz: 'Europe/Zagreb' },
+  { name: 'Athen', country: 'GR', lat: 37.984, lon: 23.728, tz: 'Europe/Athens' },
+  { name: 'Istanbul', country: 'TR', lat: 41.008, lon: 28.978, tz: 'Europe/Istanbul' },
+  { name: 'Ankara', country: 'TR', lat: 39.934, lon: 32.86, tz: 'Europe/Istanbul' },
+  { name: 'Kiew', country: 'UA', lat: 50.45, lon: 30.523, tz: 'Europe/Kyiv' },
+  { name: 'Moskau', country: 'RU', lat: 55.756, lon: 37.617, tz: 'Europe/Moscow' },
+  // Welt
+  { name: 'New York', country: 'US', lat: 40.713, lon: -74.006, tz: 'America/New_York' },
+  { name: 'Los Angeles', country: 'US', lat: 34.052, lon: -118.244, tz: 'America/Los_Angeles' },
+  { name: 'Chicago', country: 'US', lat: 41.878, lon: -87.63, tz: 'America/Chicago' },
+  { name: 'Toronto', country: 'CA', lat: 43.653, lon: -79.383, tz: 'America/Toronto' },
+  { name: 'Mexiko-Stadt', country: 'MX', lat: 19.433, lon: -99.133, tz: 'America/Mexico_City' },
+  { name: 'São Paulo', country: 'BR', lat: -23.551, lon: -46.633, tz: 'America/Sao_Paulo' },
+  { name: 'Buenos Aires', country: 'AR', lat: -34.604, lon: -58.382, tz: 'America/Argentina/Buenos_Aires' },
+  { name: 'Kairo', country: 'EG', lat: 30.044, lon: 31.236, tz: 'Africa/Cairo' },
+  { name: 'Lagos', country: 'NG', lat: 6.524, lon: 3.379, tz: 'Africa/Lagos' },
+  { name: 'Johannesburg', country: 'ZA', lat: -26.204, lon: 28.047, tz: 'Africa/Johannesburg' },
+  { name: 'Dubai', country: 'AE', lat: 25.205, lon: 55.271, tz: 'Asia/Dubai' },
+  { name: 'Teheran', country: 'IR', lat: 35.689, lon: 51.389, tz: 'Asia/Tehran' },
+  { name: 'Mumbai', country: 'IN', lat: 19.076, lon: 72.878, tz: 'Asia/Kolkata' },
+  { name: 'Delhi', country: 'IN', lat: 28.704, lon: 77.102, tz: 'Asia/Kolkata' },
+  { name: 'Bangkok', country: 'TH', lat: 13.756, lon: 100.502, tz: 'Asia/Bangkok' },
+  { name: 'Singapur', country: 'SG', lat: 1.352, lon: 103.82, tz: 'Asia/Singapore' },
+  { name: 'Hongkong', country: 'HK', lat: 22.319, lon: 114.169, tz: 'Asia/Hong_Kong' },
+  { name: 'Peking', country: 'CN', lat: 39.904, lon: 116.407, tz: 'Asia/Shanghai' },
+  { name: 'Shanghai', country: 'CN', lat: 31.23, lon: 121.474, tz: 'Asia/Shanghai' },
+  { name: 'Seoul', country: 'KR', lat: 37.567, lon: 126.978, tz: 'Asia/Seoul' },
+  { name: 'Tokio', country: 'JP', lat: 35.676, lon: 139.65, tz: 'Asia/Tokyo' },
+  { name: 'Sydney', country: 'AU', lat: -33.869, lon: 151.209, tz: 'Australia/Sydney' },
+  { name: 'Melbourne', country: 'AU', lat: -37.814, lon: 144.963, tz: 'Australia/Melbourne' },
+  { name: 'Auckland', country: 'NZ', lat: -36.849, lon: 174.763, tz: 'Pacific/Auckland' },
+]
+
+export function searchPlaces(query: string, limit = 8): Place[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  return PLACES.filter((p) => p.name.toLowerCase().includes(q)).slice(0, limit)
+}
