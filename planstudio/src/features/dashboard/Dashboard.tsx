@@ -6,7 +6,7 @@ import { Badge, Button, Card, Dialog, Field, Input, PageHeader, Textarea } from 
 import { CommitInput, fmtMoney, parseMoney, TextField } from '../../ui/fields';
 import { dateTime, eur, num } from '../../lib/format';
 import { restoreBackup } from '../../export/backup';
-import { pickFiles } from '../../store/useRun';
+import { FilePickButton } from '../../ui/FilePickButton';
 import { materialTotalCents } from '../../model/materials';
 
 /** Projektauswahl, wenn kein Projekt geöffnet ist. */
@@ -21,8 +21,7 @@ export function ProjectGate() {
     try { const p = await createProject(name, desc); await openProject(p.id); useUi.getState().set({ module: 'dashboard' }); }
     catch (e) { toast(e instanceof Error ? e.message : String(e), 'error'); }
   };
-  const restore = async () => {
-    const [f] = await pickFiles('.json,.lapb,application/json');
+  const restore = async ([f]: File[]) => {
     if (!f) return;
     try {
       const res = await restoreBackup(platform!, JSON.parse(await f.text()));
@@ -47,7 +46,7 @@ export function ProjectGate() {
               <p className="text-xs text-muted">Legt automatisch ein Gebäude „Hauptgebäude“ mit Geschoss „Erdgeschoss“ an.</p>
             </div>
           </Card>
-          <Card title={`Vorhandene Projekte (${projects.length})`} actions={<Button size="sm" onClick={restore}><Upload size={14} />Sicherung laden</Button>}>
+          <Card title={`Vorhandene Projekte (${projects.length})`} actions={<FilePickButton size="sm" accept=".json,.lapb,application/json" testId="restore-input" onFiles={restore}><Upload size={14} />Sicherung laden</FilePickButton>}>
             {projects.length === 0 && <p className="text-sm text-muted">Noch keine Projekte.</p>}
             <ul className="flex flex-col gap-1.5">
               {projects.map((p) => (

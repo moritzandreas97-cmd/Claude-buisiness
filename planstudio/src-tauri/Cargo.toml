@@ -1,6 +1,6 @@
 [package]
 name = "planstudio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lebenswerk Adorf PlanStudio"
 authors = ["Lebenswerk Adorf"]
 edition = "2021"

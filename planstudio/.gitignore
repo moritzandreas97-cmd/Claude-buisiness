@@ -5,3 +5,4 @@ src-tauri/gen/android/app/build/
 test-results/
 *.log
 src-tauri/gen/
+*.tsbuildinfo

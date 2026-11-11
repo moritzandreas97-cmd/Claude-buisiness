@@ -1,7 +1,9 @@
 /* Test der nativen Desktop-App (Tauri, WebKitGTK) über WebDriver (tauri-driver).
- * Voraussetzungen (Linux): webkit2gtk-driver, `cargo install tauri-driver`, Xvfb, Release-Build.
- * Aufruf: DISPLAY=:99 node tests/e2e/native-smoke.cjs <pfad-zur-binärdatei> [screenshot-ordner]
- * Prüft: Start, Projekt anlegen, Wand mit Maßeingabe, Aufgabe, Beenden, Neustart, Datenbestand, PDF-Export.
+ * Voraussetzungen: `cargo install tauri-driver`; Linux: webkit2gtk-driver + Xvfb; Windows: msedgedriver passend zu WebView2
+ * (Pfad über NATIVE_DRIVER). Python 3 zum Prüfen der SQLite-Datei.
+ * Aufruf: node tests/e2e/native-smoke.cjs <pfad-zur-binärdatei> [screenshot-ordner]
+ * Prüft: Start, Projekt anlegen, Wand mit Maßeingabe, Aufgabe, PDF-Export, Projektbackup, Projektimport,
+ *        Beenden, SQLite-Datei, Neustart, Datenbestand.
  */
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
@@ -12,7 +14,10 @@ const BIN = process.argv[2];
 const SHOTS = process.argv[3] || os.tmpdir();
 const WD = 'http://127.0.0.1:4444';
 const ELEM = 'element-6066-11e4-a52e-4f735466cecf';
-const DATA = path.join(os.homedir(), '.local/share/de.lebenswerk.adorf.planstudio');
+const WIN = process.platform === 'win32';
+const DATA = WIN ? path.join(process.env.APPDATA, 'de.lebenswerk.adorf.planstudio') : path.join(os.homedir(), '.local/share/de.lebenswerk.adorf.planstudio');
+const EXPORT_DIRS = [path.join(os.homedir(), 'Documents/Lebenswerk PlanStudio/Exporte'), path.join(os.homedir(), 'Lebenswerk PlanStudio/Exporte'), path.join(DATA, 'exports')];
+const newest = (ext) => { for (const d of EXPORT_DIRS) { if (!fs.existsSync(d)) continue; const f = fs.readdirSync(d).filter((x) => x.endsWith(ext)).map((x) => path.join(d, x)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs); if (f.length) return f[0]; } return null; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 
@@ -39,15 +44,16 @@ async function step(name, fn) {
   try { await fn(); results.push({ name, ok: true }); console.log('✔', name); }
   catch (e) { results.push({ name, ok: false, error: e.message }); console.log('✘', name, '\n  ', e.message); try { await shot(`native-FAIL-${results.length}.png`); } catch { /* */ } }
 }
-const sql = (q) => execFileSync('python3', ['-c', `import sqlite3,json,sys;c=sqlite3.connect(sys.argv[1]);print(json.dumps(c.execute(sys.argv[2]).fetchall()))`, path.join(DATA, 'planstudio.sqlite'), q]).toString();
+const sql = (q) => execFileSync(WIN ? 'python' : 'python3', ['-c', `import sqlite3,json,sys;c=sqlite3.connect(sys.argv[1]);print(json.dumps(c.execute(sys.argv[2]).fetchall()))`, path.join(DATA, 'planstudio.sqlite'), q]).toString();
 const start = async () => { sid = (await wd('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: BIN } } } })).sessionId; await sleep(2500); };
 const stop = async () => { await wd('DELETE', `/session/${sid}`); await sleep(1500); };
 
 (async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
   fs.rmSync(DATA, { recursive: true, force: true });
-  const driver = spawn(path.join(os.homedir(), '.cargo/bin/tauri-driver'), [], { stdio: 'ignore' });
-  await sleep(1500);
+  const driverArgs = process.env.NATIVE_DRIVER ? ['--native-driver', process.env.NATIVE_DRIVER] : [];
+  const driver = spawn(path.join(os.homedir(), '.cargo/bin/tauri-driver' + (WIN ? '.exe' : '')), driverArgs, { stdio: 'inherit' });
+  await sleep(3000);
   try {
     await step('Native App startet (SQLite wird angelegt)', async () => {
       await start();
@@ -83,19 +89,39 @@ const stop = async () => { await wd('DELETE', `/session/${sid}`); await sleep(15
       await click('[data-nav=reports]');
       await click(xbtn('PDF exportieren'), 'xpath');
       await sleep(3000);
-      const dir = [path.join(os.homedir(), 'Documents/Lebenswerk PlanStudio/Exporte'), path.join(os.homedir(), 'Lebenswerk PlanStudio/Exporte')].find((d) => fs.existsSync(d)) || 'kein Exportordner';
-      const pdfs = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.pdf')) : [];
-      if (!pdfs.length) throw new Error('Keine PDF in ' + dir);
-      const head = fs.readFileSync(path.join(dir, pdfs[pdfs.length - 1])).subarray(0, 5).toString();
-      if (head !== '%PDF-') throw new Error('Datei ist keine PDF');
-      console.log('   ', path.join(dir, pdfs[pdfs.length - 1]));
+      const pdf = newest('.pdf');
+      if (!pdf) throw new Error('Keine PDF in ' + EXPORT_DIRS.join(' | '));
+      if (fs.readFileSync(pdf).subarray(0, 5).toString() !== '%PDF-') throw new Error('Datei ist keine PDF');
+      console.log('   ', pdf);
+    });
+    await step('Projektbackup erstellen und als Projekt importieren', async () => {
+      await click(xbtn('Projektbackup erstellen'), 'xpath');
+      await sleep(2000);
+      const file = newest('.json');
+      if (!file) throw new Error('Keine Sicherungsdatei im Exportordner');
+      const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (json.format !== 'lebenswerk-planstudio-backup' || json.tables.tasks.length !== 1) throw new Error('Sicherungsinhalt unerwartet');
+      const input = await find('[data-testid=restore-input]');
+      let method = 'WebDriver-Dateiübergabe';
+      try { await wd('POST', `/session/${sid}/element/${input}/value`, { text: file }); }
+      catch (e) {
+        method = 'Dateiinhalt per Skript (Treiber verweigert Dateifeld: ' + e.message.slice(0, 60) + ')';
+        await js(`const i = document.querySelector('[data-testid=restore-input]'); const dt = new DataTransfer(); dt.items.add(new File([arguments[0]], 'backup.json', { type: 'application/json' })); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true }));`, [fs.readFileSync(file, 'utf8')]);
+      }
+      await sleep(2500);
+      const n = JSON.parse(sql('select count(*) from projects'))[0][0];
+      if (n !== 2) throw new Error('Projekte nach Import: ' + n);
+      const walls = JSON.parse(sql("select count(*) from components where type='wall'"))[0][0];
+      if (walls !== 2) throw new Error('Wände nach Import (Original + Kopie): ' + walls);
+      console.log('    Import über ' + method + ': ' + path.basename(file));
     });
     await step('App beenden → Daten in SQLite-Datei vorhanden', async () => {
       await stop();
       const p = JSON.parse(sql("select name from projects"));
-      const w = JSON.parse(sql("select geometry from components where type='wall'"));
-      const t = JSON.parse(sql('select title from tasks'));
-      if (p[0][0] !== 'Lebenswerk Adorf') throw new Error('Projekt fehlt: ' + JSON.stringify(p));
+      const w = JSON.parse(sql("select geometry from components where type='wall' limit 1"));
+      const t = JSON.parse(sql('select title from tasks order by created_at limit 1'));
+      if (!p.some((r) => r[0] === 'Lebenswerk Adorf')) throw new Error('Projekt fehlt: ' + JSON.stringify(p));
+      const ic = sql('pragma integrity_check'); if (!ic.includes('ok')) throw new Error('integrity_check: ' + ic);
       const g = JSON.parse(w[0][0]); const L = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
       if (Math.abs(L - 4250) > 0.5) throw new Error('Wandlänge ' + L);
       if (t[0][0] !== 'Elektrik Bestand prüfen') throw new Error('Aufgabe fehlt');

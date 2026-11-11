@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FileDown, FileImage, Package, ListChecks, Euro, Archive, Upload, Database, Zap, Info } from 'lucide-react';
 import { useProject } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
-import { pickFiles } from '../../store/useRun';
+import { FilePickButton } from '../../ui/FilePickButton';
 import { Button, Card, Field, PageHeader, Select } from '../../ui/primitives';
 import { buildPlanSheet, svgToPdf, type PlanExportOpts } from '../../export/planExport';
 import { exportText, safeName, toCsv } from '../../export/csv';
@@ -64,7 +64,7 @@ export function ReportsPage() {
         <Card title="Datensicherung">
           <div className="flex flex-col gap-2">
             <Button variant="primary" onClick={() => guard(async () => { const b = await createBackup(platform!, project!.id); const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'); return exportText(`${project!.name}-Backup-${stamp}.lapb.json`, JSON.stringify(b), 'application/json'); })}><Archive size={15} />Projektbackup erstellen</Button>
-            <Button onClick={async () => { const [f] = await pickFiles('.json,application/json'); if (!f) return; await guard(async () => { const r = await restoreBackup(platform!, JSON.parse(await f.text())); await useProject.getState().refreshProjects(); return r.asCopy ? 'als Kopie wiederhergestellt (Projektauswahl)' : 'wiederhergestellt (Projektauswahl)'; }); }}><Upload size={15} />Backup wiederherstellen</Button>
+            <FilePickButton accept=".json,.lapb,application/json" testId="restore-input" onFiles={async ([f]) => { if (!f) return; await guard(async () => { const r = await restoreBackup(platform!, JSON.parse(await f.text())); await useProject.getState().refreshProjects(); return r.asCopy ? 'als Kopie wiederhergestellt (Projektauswahl)' : 'wiederhergestellt (Projektauswahl)'; }); }}><Upload size={15} />Backup wiederherstellen</FilePickButton>
             {platform?.backupDatabase && <Button onClick={() => guard(() => platform.backupDatabase!())}><Database size={15} />Komplette Datenbank sichern</Button>}
             <p className="text-xs text-muted">Das Projektbackup enthält alle Planungsdaten und importierten Dateien. Wiederherstellen überschreibt nie vorhandene Projekte – bei gleicher Projekt-ID entsteht eine Kopie.</p>
             <p className="text-xs text-muted">Exportziel: {platform?.paths.export_dir}{platform?.paths.backup_dir && platform.paths.backup_dir !== platform.paths.export_dir ? ` · DB-Sicherungen: ${platform.paths.backup_dir}` : ''}</p>

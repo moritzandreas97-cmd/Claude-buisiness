@@ -1,41 +1,198 @@
-# Reproduzierbarer Build von Lebenswerk Adorf PlanStudio für Windows und Linux.
-# Startet nur manuell (Actions → "PlanStudio Build" → "Run workflow").
+# Lebenswerk Adorf PlanStudio – reproduzierbare Builds mit Tests auf der Zielplattform.
+# Läuft bei Pushes auf den Entwicklungszweig (nur bei Änderungen an planstudio/) oder manuell.
+# Ergebnisse: Actions → Lauf → „Artifacts“ (installierbare Dateien + Testergebnisse).
 name: PlanStudio Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ccr-052273e9-182u17]
+    paths: ['planstudio/**', '.github/workflows/planstudio-build.yml']
+
+concurrency:
+  group: planstudio-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: planstudio
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            bundles: nsis,msi
-          - os: ubuntu-22.04
-            bundles: deb,appimage
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: planstudio
+  # ---------------------------------------------------------------- Windows
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22, cache: npm, cache-dependency-path: planstudio/package-lock.json }
       - uses: dtolnay/rust-toolchain@stable
-      - name: Linux-Systembibliotheken
-        if: runner.os == 'Linux'
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: planstudio/src-tauri }
+      - run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run
+      - name: Build (NSIS-Installer + MSI)
+        run: npx tauri build --bundles nsis,msi
+      - name: Artefakte benennen
+        run: |
+          mkdir -p ../out
+          cp src-tauri/target/release/bundle/nsis/*.exe "../out/PlanStudio-${VERSION}-Windows-x64-Setup.exe"
+          cp src-tauri/target/release/bundle/msi/*.msi "../out/PlanStudio-${VERSION}-Windows-x64.msi"
+          ls -la ../out
+      - name: Installer still installieren
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem ../out -Filter *Setup.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Include 'planstudio.exe','Lebenswerk Adorf PlanStudio.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'Installierte Anwendung nicht gefunden' }
+          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Installiert: $($exe.FullName)"
+      - name: WebDriver-Werkzeuge (tauri-driver, passender msedgedriver)
+        run: |
+          cargo install tauri-driver --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool
+          cd .. && msedgedriver-tool && ls -la msedgedriver.exe
+      - name: Test der installierten Windows-App (SQLite, Import, Neustart, Export)
+        env: { NATIVE_DRIVER: '${{ github.workspace }}\msedgedriver.exe' }
+        run: node tests/e2e/native-smoke.cjs "$APP_EXE" ../out/test-windows
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlanStudio-${{ env.VERSION }}-build${{ github.run_number }}-Windows-x64
+          path: out/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------- Linux
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: planstudio/package-lock.json }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: planstudio/src-tauri }
+      - name: Systembibliotheken
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev webkit2gtk-driver xvfb
+      - run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npx tsc -b
       - run: npx vitest run
       - run: cargo test --manifest-path src-tauri/Cargo.toml
-      - run: npx tauri build --bundles ${{ matrix.bundles }}
+      - name: Build (.deb + AppImage)
+        env: { APPIMAGE_EXTRACT_AND_RUN: 1 }
+        run: npx tauri build --bundles deb,appimage
+      - name: Artefakte benennen
+        run: |
+          mkdir -p ../out
+          cp src-tauri/target/release/bundle/deb/*.deb "../out/PlanStudio-${VERSION}-Linux-x64.deb"
+          cp src-tauri/target/release/bundle/appimage/*.AppImage "../out/PlanStudio-${VERSION}-Linux-x64.AppImage"
+      - name: .deb installieren und installierte App testen
+        run: |
+          sudo apt-get install -y "../out/PlanStudio-${VERSION}-Linux-x64.deb"
+          cargo install tauri-driver --locked
+          Xvfb :99 -screen 0 1440x900x24 & sleep 2
+          DISPLAY=:99 node tests/e2e/native-smoke.cjs "$(command -v planstudio)" ../out/test-linux
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlanStudio-${{ env.VERSION }}-build${{ github.run_number }}-Linux-x64
+          path: out/
+
+  # ---------------------------------------------------------------- Android (Build)
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: planstudio/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: planstudio/src-tauri }
+      - name: Android-Umgebung
+        run: |
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME · NDK=$ANDROID_NDK_LATEST_HOME"
+      - run: npm ci
+      - name: Android-Projekt erzeugen
+        run: npx tauri android init --ci
+      - name: Release-APK (aarch64, armv7, x86_64)
+        run: npx tauri android build --ci --apk --target aarch64 armv7 x86_64
+      - name: Debug-APK für den Emulatortest (x86_64)
+        run: npx tauri android build --ci --apk --debug --target x86_64
+      - name: Release-APK signieren
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          mkdir -p ../out
+          UNSIGNED=$(find src-tauri/gen/android -name '*release-unsigned.apk' | head -1)
+          DEBUG=$(find src-tauri/gen/android -name '*debug.apk' | head -1)
+          echo "unsigned=$UNSIGNED debug=$DEBUG"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > /tmp/release.jks; SUFFIX=""
+          else
+            echo "::warning::Kein Signaturschlüssel hinterlegt – APK wird mit einem einmaligen Testschlüssel signiert (Updates erfordern Deinstallation)."
+            KS_PASS=planstudio-test; KS_ALIAS=planstudio
+            keytool -genkeypair -v -keystore /tmp/release.jks -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 3650 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=Lebenswerk Adorf PlanStudio Test"
+            SUFFIX="-Testsignatur"
+          fi
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" /tmp/aligned.apk
+          OUT="../out/PlanStudio-${VERSION}-Android-arm64-arm-x64${SUFFIX}.apk"
+          "$BT/apksigner" sign --ks /tmp/release.jks --ks-key-alias "$KS_ALIAS" --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" --out "$OUT" /tmp/aligned.apk
+          "$BT/apksigner" verify --verbose "$OUT" | head -5
+          cp "$DEBUG" "../out/PlanStudio-${VERSION}-Android-x64-DEBUG-nur-fuer-Tests.apk"
+          rm -f /tmp/release.jks
+          ls -la ../out
       - uses: actions/upload-artifact@v4
         with:
-          name: planstudio-${{ runner.os }}
-          path: planstudio/src-tauri/target/release/bundle/
+          name: PlanStudio-${{ env.VERSION }}-build${{ github.run_number }}-Android
+          path: out/
+
+  # ---------------------------------------------------------------- Android (Emulatortest)
+  android-test:
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { pattern: '*-Android', path: apk, merge-multiple: true }
+      - name: KVM aktivieren
+        working-directory: .
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          ls apk
+      - name: Test auf Android-14-Tablet-Emulator (Pixel C, Querformat)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          working-directory: planstudio
+          script: node tests/e2e/android-smoke.cjs "$(ls ../apk/*DEBUG*.apk | head -1)" ../out/test-android
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlanStudio-testergebnisse-build${{ github.run_number }}-Android-Emulator
+          path: out/

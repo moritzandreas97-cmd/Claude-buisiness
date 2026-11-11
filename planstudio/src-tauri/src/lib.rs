@@ -195,6 +195,40 @@ fn export_file(paths: State<AppPaths>, name: String, data: String) -> Result<Str
     Ok(target.to_string_lossy().to_string())
 }
 
+/// Prüft, ob in einem Ordner tatsächlich geschrieben werden kann (legt ihn ggf. an).
+fn writable(dir: &Path) -> bool {
+    if fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join(".planstudio-schreibtest");
+    let ok = fs::write(&probe, b"ok").is_ok();
+    let _ = fs::remove_file(&probe);
+    ok
+}
+
+/// Exportordner: für den Benutzer sichtbar, falls beschreibbar.
+/// Desktop: Dokumente → Benutzerordner. Android: öffentlicher „Download“-Ordner.
+/// Rückfall jeweils: App-Datenordner/exports.
+fn choose_export_dir<R: tauri::Runtime>(app: &tauri::App<R>, data_dir: &Path) -> PathBuf {
+    let p = app.path();
+    let candidates: Vec<PathBuf> = if cfg!(mobile) {
+        let mut v: Vec<PathBuf> = p.download_dir().ok().into_iter().collect();
+        v.push(PathBuf::from("/storage/emulated/0/Download"));
+        v.into_iter().map(|d| d.join("Lebenswerk PlanStudio")).collect()
+    } else {
+        [p.document_dir(), p.home_dir()]
+            .into_iter()
+            .filter_map(|d| d.ok())
+            .filter(|d| d.is_dir())
+            .map(|d| d.join("Lebenswerk PlanStudio").join("Exporte"))
+            .collect()
+    };
+    candidates
+        .into_iter()
+        .find(|d| writable(d))
+        .unwrap_or_else(|| data_dir.join("exports"))
+}
+
 fn open_db(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(err)?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;").map_err(err)?;
@@ -211,15 +245,7 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
-            // Exporte: Dokumente-Ordner → Benutzerordner → (Android/Sandbox) App-Datenordner
-            let export_dir = app
-                .path()
-                .document_dir()
-                .or_else(|_| app.path().home_dir())
-                .ok()
-                .filter(|d| !cfg!(mobile) && d.is_dir())
-                .map(|d| d.join("Lebenswerk PlanStudio").join("Exporte"))
-                .unwrap_or_else(|| data_dir.join("exports"));
+            let export_dir = choose_export_dir(app, &data_dir);
             let backup_dir = data_dir.join("backups");
             let files_dir = data_dir.join("files");
             let db_path = data_dir.join("planstudio.sqlite");
