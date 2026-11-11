@@ -11,6 +11,7 @@ import { bus } from '../../lib/bus';
 import { newId } from '../../lib/ids';
 
 const INTERIOR = ['furniture', 'podest', 'beam', 'plate'];
+const TYPE_LABEL: Record<string, string> = { furniture: 'Möbel', podest: 'Podest', beam: 'Balken', plate: 'Platte' };
 
 /** Raumstudio: Innenausbau eines Raums mit Möbeln, Podesten, Balken, Platten und Gestaltungsvarianten. */
 export function RoomStudio() {
@@ -69,7 +70,7 @@ function RoomInfo({ roomId }: { roomId: string }) {
         <ul className="flex flex-col gap-1">
           {items.map((c) => { const g = c.geometry as BoxGeom; return (
             <li key={c.id}><button className="flex w-full justify-between rounded bg-panel2 px-2 py-1 text-left text-xs hover:bg-hover" onClick={() => useUi.getState().select([{ table: 'components', id: c.id }])}>
-              <span className="truncate">{(c.props?.name as string) || c.type}</span><span className="text-muted">{Math.round(g.w)}×{Math.round(g.d)}×{Math.round(g.h)}</span></button></li>); })}
+              <span className="truncate">{(c.props?.name as string) || TYPE_LABEL[c.type] || c.type}</span><span className="text-muted">{Math.round(g.w)}×{Math.round(g.d)}×{Math.round(g.h)}</span></button></li>); })}
         </ul>
       </div>
       <div className="border-t border-line px-3 py-3">

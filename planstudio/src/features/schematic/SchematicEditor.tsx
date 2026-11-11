@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
-import { MousePointer2, Cable, Plus, Trash2, RotateCw, Link2, AlertTriangle } from 'lucide-react';
+import { MousePointer2, Cable, Plus, Trash2, RotateCw, Link2, AlertTriangle, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useProject } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { useRun } from '../../store/useRun';
@@ -97,8 +97,24 @@ export function SchematicEditor() {
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight })); ro.observe(el); return () => ro.disconnect(); }, []);
   useEffect(() => { if (!pageId || !data.schematic_pages[pageId]) setPageId(pages[0]?.id ?? null); }, [pages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const scale = Math.min(size.w / (SCHEM_PAGE.w + 20), size.h / (SCHEM_PAGE.h + 20));
-  const ox = (size.w - SCHEM_PAGE.w * scale) / 2, oy = (size.h - SCHEM_PAGE.h * scale) / 2;
+  const [zoom, setZoom] = useState({ z: 1, px: 0, py: 0 });
+  const [pan, setPan] = useState<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const base = Math.min(size.w / (SCHEM_PAGE.w + 20), size.h / (SCHEM_PAGE.h + 20));
+  const scale = base * zoom.z;
+  const ox = (size.w - SCHEM_PAGE.w * scale) / 2 + zoom.px, oy = (size.h - SCHEM_PAGE.h * scale) / 2 + zoom.py;
+  const zoomAt = (sx: number, sy: number, f: number) => setZoom((zz) => {
+    const z = Math.min(8, Math.max(0.5, zz.z * f));
+    const s0 = base * zz.z, s1 = base * z;
+    const ox0 = (size.w - SCHEM_PAGE.w * s0) / 2 + zz.px, oy0 = (size.h - SCHEM_PAGE.h * s0) / 2 + zz.py;
+    const mx = (sx - ox0) / s0, my = (sy - oy0) / s0;
+    return { z, px: sx - mx * s1 - (size.w - SCHEM_PAGE.w * s1) / 2, py: sy - my * s1 - (size.h - SCHEM_PAGE.h * s1) / 2 };
+  });
+  useEffect(() => {
+    const el = svg.current; if (!el) return;
+    const h = (e: WheelEvent) => { e.preventDefault(); const r = el.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015)); };
+    el.addEventListener('wheel', h, { passive: false });
+    return () => el.removeEventListener('wheel', h);
+  });
   const toPage = (e: { clientX: number; clientY: number }): Pt => { const r = svg.current!.getBoundingClientRect(); return { x: (e.clientX - r.left - ox) / scale, y: (e.clientY - r.top - oy) / scale }; };
   const snapP = (p: Pt) => ({ x: round(p.x, GRID), y: round(p.y, GRID) });
 
@@ -143,13 +159,17 @@ export function SchematicEditor() {
     }
     if (wireEl) { setSel({ kind: 'wire', id: wireEl.dataset.wire! }); return; }
     setSel(null);
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    setPan({ sx: e.clientX, sy: e.clientY, px: zoom.px, py: zoom.py });
   };
   const onMove = (e: RPointerEvent<SVGSVGElement>) => {
     const p = toPage(e);
     setCursor(p);
+    if (pan) { setZoom((zz) => ({ ...zz, px: pan.px + e.clientX - pan.sx, py: pan.py + e.clientY - pan.sy })); return; }
     if (drag) { const cur = snapP({ x: drag.orig.x + p.x - drag.start.x, y: drag.orig.y + p.y - drag.start.y }); setDrag({ ...drag, cur, moved: drag.moved || cur.x !== drag.orig.x || cur.y !== drag.orig.y }); }
   };
   const onUp = async () => {
+    setPan(null);
     const d = drag; setDrag(null);
     if (d?.moved) await run('Symbol verschieben', (tx) => tx.update('schematic_symbols', d.id, { x: d.cur.x, y: d.cur.y }));
   };
@@ -256,8 +276,13 @@ export function SchematicEditor() {
             })}
           </g>
         </svg>
+        <div className="absolute bottom-3 right-3 flex flex-col gap-1 rounded-lg border border-line bg-panel/95 p-1 shadow-lg">
+          <Button variant="ghost" size="icon" aria-label="Vergrößern" onClick={() => zoomAt(size.w / 2, size.h / 2, 1.25)}><ZoomIn size={16} /></Button>
+          <Button variant="ghost" size="icon" aria-label="Verkleinern" onClick={() => zoomAt(size.w / 2, size.h / 2, 0.8)}><ZoomOut size={16} /></Button>
+          <Button variant="ghost" size="icon" aria-label="Ganzes Blatt" onClick={() => setZoom({ z: 1, px: 0, py: 0 })}><Maximize size={16} /></Button>
+        </div>
         <div className="pointer-events-none absolute left-3 top-3 rounded bg-panel/90 px-2 py-1 text-xs text-muted">
-          {tool === 'place' ? `Platzieren: ${schemDef(symType).label} – auf Blatt tippen` : tool === 'wire' ? (wireStart ? 'Zielanschluss antippen (Esc = abbrechen)' : 'Startanschluss antippen') : 'Symbol ziehen = verschieben · R = drehen · Entf = löschen'}
+          {tool === 'place' ? `Platzieren: ${schemDef(symType).label} – auf Blatt tippen` : tool === 'wire' ? (wireStart ? 'Zielanschluss antippen (Esc = abbrechen)' : 'Startanschluss antippen') : 'Symbol ziehen = verschieben · Fläche ziehen = Ansicht verschieben · Mausrad = Zoom · R = drehen · Entf = löschen'}
         </div>
       </div>
 

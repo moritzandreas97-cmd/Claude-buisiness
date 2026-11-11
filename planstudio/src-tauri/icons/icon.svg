@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="200" fill="#0f172a"/>
+  <rect x="64" y="64" width="896" height="896" rx="150" fill="#1d4ed8"/>
+  <g fill="none" stroke="#ffffff" stroke-width="44" stroke-linejoin="miter">
+    <path d="M232 760 V300 H560 V430 H792 V760 Z"/>
+    <path d="M560 430 V560"/>
+  </g>
+  <path d="M232 760 H792" stroke="#93c5fd" stroke-width="44"/>
+  <path d="M640 560 l60 -110 l-30 0 l40 -90" stroke="#fbbf24" stroke-width="30" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="300" y="660" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="210" fill="#ffffff">LA</text>
+</svg>

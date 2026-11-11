@@ -124,7 +124,7 @@ async function download(trigger) {
     await page.fill('[aria-label=Breite]', '99999'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
     const w2 = await page.evaluate(() => Object.values(window.__planstudio.useProject.getState().data.components).find((c) => c.type === 'door').geometry.width);
     assert(w2 === 1010, 'Ungültige Breite übernommen: ' + w2);
-    assert(await page.locator('[role=status]', { hasText: 'passt' }).count() > 0, 'Keine Fehlermeldung angezeigt');
+    assert(await page.locator('[role=status]', { hasText: 'passt' }).count() === 1, 'Fehlermeldung nicht genau einmal angezeigt');
   });
   await step('09 Stromkreis anlegen', async () => {
     await page.click('[data-nav=electrical]');
@@ -208,6 +208,29 @@ async function download(trigger) {
     await page.getByRole('button', { name: 'Erfassen' }).click(); await page.waitForTimeout(300);
     assert((await state()).expenses === 1, 'Ausgabe fehlt');
   });
+  await step('16a Foto importieren und Raum zuordnen (Dokumentation)', async () => {
+    await page.click('[data-nav=docs]');
+    const png = path.join(shotDir || '/tmp', 'testfoto.png');
+    fs.writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Fotos importieren' }).click()]);
+    await chooser.setFiles(png); await page.waitForTimeout(600);
+    await page.selectOption('[aria-label="Raum zuordnen"]', { label: 'Küche' }); await page.waitForTimeout(300);
+    const d = await page.evaluate(() => Object.values(window.__planstudio.useProject.getState().data.documents));
+    assert(d.length === 1 && d[0].kind === 'photo' && d[0].room_id && d[0].storage_key, 'Dokument ' + JSON.stringify(d));
+    assert(await page.locator('img[alt=testfoto]').count() === 1, 'Vorschaubild fehlt');
+  });
+  await step('16b Raumstudio: Möbel + Podest platzieren, Variante speichern/laden', async () => {
+    await page.click('[data-nav=room]'); await page.waitForTimeout(400);
+    await tool('furniture'); await clickModel(1500, 2500);
+    await tool('podest'); await clickModel(3500, 2500);
+    await page.fill('[aria-label=Variantenname]', 'Variante A'); await page.getByRole('button', { name: 'Sichern' }).click(); await page.waitForTimeout(300);
+    await tool('select'); await clickModel(3500, 2500); await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+    const cnt = () => page.evaluate(() => Object.values(window.__planstudio.useProject.getState().data.components).filter((c) => ['furniture', 'podest'].includes(c.type)).length);
+    assert(await cnt() === 1, 'Löschen Podest');
+    await page.getByRole('button', { name: 'Laden' }).click(); await page.waitForTimeout(300);
+    assert(await cnt() === 2, 'Variante nicht geladen');
+    if (shotDir) await page.screenshot({ path: path.join(shotDir, '16b-room.png') });
+  });
   let before;
   await step('17 Speichern, Neustart (Reload), Datenbestand identisch', async () => {
     await page.click('header [aria-label=Speichern]'); await page.waitForTimeout(800);
@@ -237,7 +260,7 @@ async function download(trigger) {
   await step('20 Projektbackup erstellen und als Kopie wiederherstellen', async () => {
     const b = await download(() => page.getByRole('button', { name: 'Projektbackup erstellen' }).click());
     const json = JSON.parse(fs.readFileSync(b.path, 'utf8'));
-    assert(json.format === 'lebenswerk-planstudio-backup' && json.tables.components.length === 6, 'Backupinhalt');
+    assert(json.format === 'lebenswerk-planstudio-backup' && json.tables.components.length === 8 && json.tables.documents.length === 1 && Object.keys(json.files).length === 1, 'Backupinhalt');
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Backup wiederherstellen' }).click()]);
     await chooser.setFiles(b.path); await page.waitForTimeout(800);
     const n = await page.evaluate(() => window.__planstudio.useProject.getState().projects.length);

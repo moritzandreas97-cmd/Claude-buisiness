@@ -181,7 +181,7 @@ function StatusBar() {
   const isPlan = PLAN_MODULES.includes(ui.module);
   const TOOL_LABEL: Record<string, string> = { select: 'Auswahl', pan: 'Verschieben', wall: 'Wand', room: 'Raum (Polygon)', room_rect: 'Raum (Rechteck)', door: 'Tür', window: 'Fenster', dimension: 'Maßlinie', measure: 'Messen', symbol: 'Symbol', line: 'Leitung', furniture: 'Möbel', podest: 'Podest', beam: 'Balken', plate: 'Platte' };
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-4 overflow-hidden border-t border-line bg-panel px-3 text-[11px] text-muted tabular" data-testid="statusbar">
+    <footer className="flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap border-t border-line bg-panel px-3 text-[11px] text-muted tabular [&>*]:shrink-0" data-testid="statusbar">
       {isPlan && <>
         <span title="Cursor (Modellkoordinaten)">X {ui.cursor ? formatMm(ui.cursor.x, 'm') : '–'} · Y {ui.cursor ? formatMm(ui.cursor.y, 'm') : '–'}</span>
         <span className="hidden md:inline">{ui.scaleInfo}</span>

@@ -16,7 +16,7 @@ function useRun() {
   const mutate = useProject((s) => s.mutate);
   const toast = useUi((s) => s.toast);
   return async (label: string, fn: (tx: Tx) => unknown) => {
-    try { return await mutate(label, fn); } catch (e) { toast(e instanceof Error ? e.message : String(e), 'error'); throw e; }
+    try { return await mutate(label, fn); } catch (e) { toast(e instanceof Error ? e.message : String(e), 'error'); throw Object.assign(e instanceof Error ? e : new Error(String(e)), { toasted: true }); }
   };
 }
 

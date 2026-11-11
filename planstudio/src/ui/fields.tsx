@@ -18,8 +18,14 @@ export function CommitInput<T>({ value, onCommit, parse, format, placeholder, cl
     if (v === INVALID) { setBad(true); useUi.getState().toast(`Ungültige Eingabe: „${text}“`, 'error'); return; }
     setBad(false);
     if (fmt(v as T) !== fmt(value) || text !== fmt(value)) {
-      const r = onCommit(v as T);
-      if (r && typeof (r as Promise<unknown>).catch === 'function') (r as Promise<unknown>).catch((e) => { useUi.getState().toast(e instanceof Error ? e.message : String(e), 'error'); setText(fmt(value)); });
+      const fail = (e: unknown) => {
+        if (!(e as { toasted?: boolean })?.toasted) useUi.getState().toast(e instanceof Error ? e.message : String(e), 'error');
+        setText(fmt(value));
+      };
+      try {
+        const r = onCommit(v as T);
+        if (r && typeof (r as Promise<unknown>).catch === 'function') (r as Promise<unknown>).catch(fail);
+      } catch (e) { fail(e); }
     }
   };
   const cls = cn('w-full rounded-md border bg-panel px-2.5 text-sm outline-none focus:ring-2 focus:ring-accent/25 touch-lg', bad ? 'border-danger' : 'border-line focus:border-accent', multiline ? 'py-2' : 'h-9', className);

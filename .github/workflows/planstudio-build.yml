@@ -1,0 +1,41 @@
+# Reproduzierbarer Build von Lebenswerk Adorf PlanStudio für Windows und Linux.
+# Startet nur manuell (Actions → "PlanStudio Build" → "Run workflow").
+name: PlanStudio Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis,msi
+          - os: ubuntu-22.04
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: planstudio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux-Systembibliotheken
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npx tauri build --bundles ${{ matrix.bundles }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planstudio-${{ runner.os }}
+          path: planstudio/src-tauri/target/release/bundle/

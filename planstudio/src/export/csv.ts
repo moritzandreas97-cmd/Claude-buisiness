@@ -12,7 +12,7 @@ export function toCsv(rows: Record<string, unknown>[], headers?: string[]): stri
   return '﻿' + [cols.join(';'), ...rows.map((r) => cols.map((c) => esc(r[c])).join(';'))].join('\r\n');
 }
 
-export const safeName = (s: string) => s.replace(/[^\p{L}\p{N}._ -]+/gu, '_').trim();
+export const safeName = (s: string) => s.replace(/[^\p{L}\p{N}._ ()-]+/gu, '_').trim();
 
 export async function exportText(fileName: string, content: string | Uint8Array, mime: string) {
   const p = useProject.getState().platform!;

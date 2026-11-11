@@ -85,7 +85,7 @@ export function DocsPage() {
                 {(d.kind === 'note' || d.kind === 'defect' || d.kind === 'inventory') && <CommitInput multiline ariaLabel="Text" value={d.text} parse={trimOrNull} format={(v) => v ?? ''} onCommit={(v) => run('Dokument', (tx) => tx.update('documents', d.id, { text: v }))} />}
                 <CommitInput ariaLabel="Beschreibung" className="h-8 text-xs" value={d.description} placeholder="Beschreibung" parse={trimOrNull} format={(v) => v ?? ''} onCommit={(v) => run('Dokument', (tx) => tx.update('documents', d.id, { description: v }))} />
                 <div className="grid grid-cols-2 gap-1.5">
-                  <Select className="h-8 text-xs" aria-label="Raum zuordnen" value={d.room_id ?? ''} onChange={(e) => run('Zuordnung', (tx) => tx.update('documents', d.id, { room_id: e.target.value || null }))}><option value="">kein Raum</option>{Object.values(data.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</Select>
+                  <Select className="h-8 text-xs" aria-label="Raum zuordnen" value={d.room_id ?? ''} onChange={(e) => { const val = e.target.value; void run('Zuordnung', (tx) => tx.update('documents', d.id, { room_id: val || null })); }}><option value="">kein Raum</option>{Object.values(data.rooms).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</Select>
                   <Select className="h-8 text-xs" aria-label="Objekt zuordnen" value={d.ref_id ?? ''} onChange={(e) => { const [t, id] = e.target.value.split(':'); run('Zuordnung', (tx) => tx.update('documents', d.id, { ref_table: id ? t : null, ref_id: id || null })); }}>
                     <option value="">kein Objekt/Bauteil</option>
                     {d.ref_id && <option value={d.ref_id}>{d.ref_table}:{d.ref_id.slice(-6)}</option>}
@@ -93,7 +93,7 @@ export function DocsPage() {
                     {Object.values(data.components).filter((c) => c.type === 'wall' || c.type === 'door' || c.type === 'window').map((c) => <option key={c.id} value={`components:${c.id}`}>{c.type === 'wall' ? 'Wand' : c.type === 'door' ? 'Tür' : 'Fenster'} …{c.id.slice(-5)}</option>)}
                   </Select>
                 </div>
-                {d.kind === 'defect' && <Select className="h-8 text-xs" aria-label="Mangelstatus" value={d.defect_status ?? 'offen'} onChange={(e) => run('Mangelstatus', (tx) => tx.update('documents', d.id, { defect_status: e.target.value }))}>{DEFECT.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}</Select>}
+                {d.kind === 'defect' && <Select className="h-8 text-xs" aria-label="Mangelstatus" value={d.defect_status ?? 'offen'} onChange={(e) => { const val = e.target.value; void run('Mangelstatus', (tx) => tx.update('documents', d.id, { defect_status: val })); }}>{DEFECT.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}</Select>}
                 <div className="flex justify-between">
                   {d.storage_key ? <Button size="sm" onClick={() => download(d)}><Download size={13} />Datei</Button> : <span />}
                   <Button size="sm" variant="ghost" aria-label="Löschen" onClick={() => remove(d)}><Trash2 size={13} /></Button>

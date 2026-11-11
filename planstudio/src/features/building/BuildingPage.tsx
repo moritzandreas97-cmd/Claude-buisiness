@@ -54,7 +54,7 @@ export function BuildingPage() {
                           {rooms.map((r) => (
                             <tr key={r.id}>
                               <Td><CommitInput ariaLabel="Raumname" className="h-8" value={r.name} parse={trimOrNull} format={(v) => v ?? ''} onCommit={(v) => { if (!v) throw new Error('Name darf nicht leer sein.'); return run('Raum', (tx) => tx.update('rooms', r.id, { name: v })); }} /></Td>
-                              <Td><Select className="h-8" value={r.usage ?? ''} onChange={(e) => run('Raum', (tx) => tx.update('rooms', r.id, { usage: e.target.value || null }))}><option value="">–</option>{ROOM_USAGES.map((u) => <option key={u}>{u}</option>)}</Select></Td>
+                              <Td><Select className="h-8" value={r.usage ?? ''} onChange={(e) => { const val = e.target.value; void run('Raum', (tx) => tx.update('rooms', r.id, { usage: val || null })); }}><option value="">–</option>{ROOM_USAGES.map((u) => <option key={u}>{u}</option>)}</Select></Td>
                               <Td className="tabular whitespace-nowrap">{r.area_m2 != null ? `${num(r.area_m2)} m²` : '–'}</Td>
                               <Td><Badge tone={r.status === 'fertig' ? 'ok' : r.status === 'in_arbeit' ? 'accent' : 'default'}>{labelOf(ROOM_STATUS, r.status)}</Badge></Td>
                               <Td className="tabular">{eur(r.budget_cents)}</Td>
