@@ -212,8 +212,10 @@ fn writable(dir: &Path) -> bool {
 fn choose_export_dir<R: tauri::Runtime>(app: &tauri::App<R>, data_dir: &Path) -> PathBuf {
     let p = app.path();
     let candidates: Vec<PathBuf> = if cfg!(mobile) {
-        let mut v: Vec<PathBuf> = p.download_dir().ok().into_iter().collect();
-        v.push(PathBuf::from("/storage/emulated/0/Download"));
+        // Zuerst der öffentliche Download-Ordner (bleibt bei Deinstallation erhalten, im Dateimanager sichtbar),
+        // dann der app-spezifische Ordner (Android/data/<paket>/files/Download – wird bei Deinstallation gelöscht).
+        let mut v = vec![PathBuf::from("/storage/emulated/0/Download")];
+        v.extend(p.download_dir().ok());
         v.into_iter().map(|d| d.join("Lebenswerk PlanStudio")).collect()
     } else {
         [p.document_dir(), p.home_dir()]

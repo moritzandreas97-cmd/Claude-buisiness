@@ -51,6 +51,28 @@ jobs:
           if (-not $exe) { throw 'Installierte Anwendung nicht gefunden' }
           "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Installiert: $($exe.FullName)"
+      - name: Starttest der installierten App (ohne Testtreiber)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ../out/test-windows | Out-Null
+          $data = "$env:APPDATA\de.lebenswerk.adorf.planstudio"
+          Remove-Item -Recurse -Force $data -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath $env:APP_EXE -PassThru
+          Start-Sleep -Seconds 20
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save((Resolve-Path ../out/test-windows).Path + '\start-installierte-app.png')
+          if ($p.HasExited) { throw "App hat sich beendet (ExitCode $($p.ExitCode))" }
+          Get-ChildItem $data | Format-Table Name, Length
+          if (-not (Test-Path "$data\planstudio.sqlite")) { throw 'SQLite-Datenbank wurde nicht angelegt' }
+          Write-Host "App läuft (PID $($p.Id)), Datenbank angelegt: $data\planstudio.sqlite"
+          Stop-Process -Id $p.Id -Force
+          Start-Sleep -Seconds 2
+          # Kopie ohne Leerzeichen im Pfad für den WebDriver-Test
+          New-Item -ItemType Directory -Force C:\pstest | Out-Null
+          Copy-Item $env:APP_EXE C:\pstest\planstudio.exe
       - name: WebDriver-Werkzeuge (tauri-driver, passender msedgedriver)
         run: |
           cargo install tauri-driver --locked
@@ -58,7 +80,7 @@ jobs:
           cd .. && msedgedriver-tool && ls -la msedgedriver.exe
       - name: Test der installierten Windows-App (SQLite, Import, Neustart, Export)
         env: { NATIVE_DRIVER: '${{ github.workspace }}\msedgedriver.exe' }
-        run: node tests/e2e/native-smoke.cjs "$APP_EXE" ../out/test-windows
+        run: node tests/e2e/native-smoke.cjs 'C:\pstest\planstudio.exe' ../out/test-windows
       - uses: actions/upload-artifact@v4
         if: always()
         with:

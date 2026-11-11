@@ -101,6 +101,7 @@ function pullDb() {
 
 (async () => {
   let backupFile = null;
+  let exportPath = '';
   await step('APK installieren', async () => {
     adb('install', '-r', '-g', APK);
     sh('settings put system accelerometer_rotation 0'); sh('settings put system user_rotation 1'); // Querformat
@@ -143,7 +144,8 @@ function pullDb() {
     const p = await lastSavedPath();
     const head = adb('exec-out', `head -c 5 '${p}' 2>/dev/null || run-as ${PKG} head -c 5 '${p}'`).toString();
     assert(head === '%PDF-', 'PDF nicht lesbar unter ' + p);
-    return p + (p.includes('/Download/') ? ' (öffentlicher Download-Ordner)' : ' (nur App-intern – für Benutzer nicht sichtbar!)');
+    exportPath = p;
+    return p + (p.startsWith('/storage/emulated/0/Download/') ? ' → öffentlicher Download-Ordner' : p.includes('/Android/data/') ? ' → app-spezifischer Ordner (bei Deinstallation gelöscht!)' : ' → nur App-intern (für Benutzer nicht sichtbar!)');
   });
   await step('Projektbackup erstellen', async () => {
     await sleep(500);
@@ -172,18 +174,25 @@ function pullDb() {
     shot('05-picker.png');
     const opened = /documentsui/.test(xml);
     assert(opened, 'Dokumentenauswahl wurde nicht angezeigt');
-    // Versuch, die Datei direkt zu wählen (gelingt nur, wenn sie in der Liste sichtbar ist)
-    const m = xml.match(/text="planstudio-test-backup\.json"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-    if (m) {
-      sh(`input tap ${(+m[1] + +m[3]) >> 1} ${(+m[2] + +m[4]) >> 1}`);
-      await sleep(3000);
+    // Datei auswählen: zuerst direkt, sonst über „Downloads“ im Seitenmenü der Dokumentenauswahl
+    const dump = () => { sh('uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true'); return sh('cat /sdcard/ui.xml'); };
+    const tapNode = (xml, re) => { const m = xml.match(re); if (!m) return false; sh(`input tap ${(+m[1] + +m[3]) >> 1} ${(+m[2] + +m[4]) >> 1}`); return true; };
+    const fileRe = /text="planstudio-test-backup\.json"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/;
+    let x = xml;
+    if (!fileRe.test(x)) {
+      if (tapNode(x, /content-desc="Show roots"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/)) { await sleep(1500); x = dump(); }
+      if (tapNode(x, /text="Downloads?"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/)) { await sleep(2000); x = dump(); }
+    }
+    shot('05b-picker.png');
+    if (tapNode(x, fileRe)) {
+      await sleep(3500);
       const t = await toasts();
-      if (t.includes('wiederhergestellt')) return 'geöffnet, Datei ausgewählt und importiert';
-      return 'geöffnet, Datei angetippt – Import nicht bestätigt: ' + t.slice(0, 120);
+      if (t.includes('wiederhergestellt')) return 'Dokumentenauswahl geöffnet, Datei gewählt, Import erfolgreich';
+      throw new Error('Datei gewählt, Import nicht bestätigt: ' + t.slice(0, 160));
     }
     sh('input keyevent KEYCODE_BACK');
     await sleep(1000);
-    return 'geöffnet; Datei nicht automatisch auswählbar (manuelle Auswahl nötig) – abgebrochen';
+    throw new Error('Dokumentenauswahl geöffnet, Datei automatisch nicht auffindbar (manuelle Auswahl nicht geprüft)');
   }, { info: true });
   await step('Speichern, App beenden, SQLite-Datei prüfen', async () => {
     await tap('document.querySelector("header [aria-label=Speichern]")');
@@ -196,10 +205,10 @@ function pullDb() {
     const walls = q("select geometry from components where type='wall'");
     const tasks = q('select title from tasks').map((r) => r[0]);
     assert(ic === 'ok', 'integrity_check ' + ic);
-    assert(projects.length === 2 && projects.includes('Lebenswerk Adorf'), 'Projekte ' + projects);
+    assert(projects.length >= 2 && projects.includes('Lebenswerk Adorf'), 'Projekte ' + projects);
     const g = JSON.parse(walls[0][0]);
     assert(Math.abs(Math.hypot(g.x2 - g.x1, g.y2 - g.y1) - 4250) < 0.5, 'Wandlänge');
-    assert(tasks.length === 2 && tasks.every((t) => t === 'Elektrik Bestand prüfen'), 'Aufgaben ' + tasks);
+    assert(tasks.length === projects.length && tasks.every((t) => t === 'Elektrik Bestand prüfen'), 'Aufgaben ' + tasks);
     return `${files.join(', ')} · ${projects.length} Projekte · integrity_check ok`;
   });
   await step('Neustart: Projekt wird wieder geöffnet, Daten vollständig', async () => {
@@ -213,6 +222,7 @@ function pullDb() {
     shot('06-restart.png');
   });
 
+  results.push({ name: 'Exportordner', ok: true, note: exportPath });
   const failed = results.filter((r) => r.ok === false).length;
   console.log(`\n${results.filter((r) => r.ok).length} bestanden, ${failed} fehlgeschlagen, ${results.filter((r) => r.ok === null).length} informativ`);
   fs.writeFileSync(path.join(OUT, 'android-results.json'), JSON.stringify(results, null, 2));
