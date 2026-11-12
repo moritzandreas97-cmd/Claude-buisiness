@@ -1,4 +1,57 @@
-# Testbericht – Lebenswerk Adorf PlanStudio 0.1
+# Testbericht – Lebenswerk Adorf PlanStudio
+
+## Version 0.1.1 – Plattformtests (2026-11-12, GitHub Actions „PlanStudio Build“, Lauf #5)
+
+Alle Tests laufen automatisiert bei jedem Build. Getestet wird jeweils die **installierte** bzw. installierbare App
+auf der Zielplattform – nicht der Browser-Entwicklungsmodus.
+
+| Plattform | Build | Testumgebung | Ergebnis |
+|---|---|---|---|
+| **Windows** | NSIS-Setup + MSI | windows-latest (GitHub-Runner, Windows Server, WebView2 156); stille Installation des Setups, Test der installierten EXE | ✅ 9/9 + Starttest |
+| **Linux** | .deb + AppImage | ubuntu-22.04, Installation des .deb, WebDriver (WebKitGTK) | ✅ 8/8 |
+| **Android** | Release-APK (arm64/armv7/x86_64), signiert | Android 14 (API 34) Emulator, Profil Pixel C (Tablet, 1280×900 CSS-px, Querformat), Debug-APK x86_64 | ✅ alle Schritte |
+| alle | Typprüfung, 21 Unit-Tests, 3 Rust-Tests | Linux/Windows-Runner | ✅ |
+
+### Geprüfte Abläufe je Plattform
+
+| Ablauf | Windows | Linux | Android |
+|---|---|---|---|
+| App startet, SQLite-Datei wird im App-Datenordner angelegt | ✅ (auch ohne Testwerkzeug: Prozess läuft, DB vorhanden, Bildschirmfoto) | ✅ | ✅ |
+| Projekt „Lebenswerk Adorf“ anlegen | ✅ | ✅ | ✅ |
+| Wand per Zeigen/Tippen + Längeneingabe „4,25m“ (Länge in DB = 4250 mm) | ✅ | ✅ | ✅ |
+| Aufgabe anlegen | ✅ | ✅ | ✅ |
+| PDF-Export, Datei lesbar | ✅ `Dokumente\Lebenswerk PlanStudio\Exporte` | ✅ | ✅ `/storage/emulated/0/Download/Lebenswerk PlanStudio` |
+| Projektbackup erstellen | ✅ | ✅ | ✅ (öffentlicher Download-Ordner) |
+| **Projektimport** | ✅ echte Datei über Dateifeld (DevTools `setFileInputFiles`) | ✅ echte Datei über WebDriver | ✅ per Skript **und** ✅ über die **echte Android-Dokumentenauswahl** (Datei in „Downloads“ angetippt) |
+| SQLite nach Beenden: `integrity_check = ok`, Datenbestand vollständig | ✅ nach **hartem Beenden** (Absturzsimulation) | ✅ | ✅ (DB-Kopie vom Gerät geprüft) |
+| Neustart: letztes Projekt wird geöffnet, Daten sichtbar | ✅ (nach Absturzsimulation) | ✅ | ✅ |
+| Automatische Startsicherung der Datenbank | ✅ | ✅ | – (nicht geprüft) |
+
+### In dieser Phase gefundene und behobene Fehler
+1. **Android-Exportordner**: Tauris `download_dir()` liefert auf Android den app-spezifischen Ordner
+   `Android/data/<paket>/files/Download` (bei Deinstallation gelöscht, im Dateimanager schwer erreichbar).
+   Jetzt: öffentlicher Ordner `Download/Lebenswerk PlanStudio` (Schreibprüfung, Rückfall). Auf Android 14 bestätigt.
+2. **Zuletzt geöffnetes Projekt nach Absturz** (Windows): Der Eintrag lag im WebView-`localStorage` und ging beim harten
+   Beenden verloren (Daten selbst waren vollständig). Jetzt transaktional in SQLite gespeichert.
+3. Windows-Testanbindung: msedgedriver/`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` greifen bei Tauri nicht, da Tauri eigene
+   Browser-Argumente setzt. Lösung: Test-Port nur bei gesetzter Variable `PLANSTUDIO_TEST_DEVTOOLS_PORT`.
+
+### Nicht getestet (ehrlich)
+* **Kein Test auf echter Hardware**: kein physisches Android-Tablet, kein Windows-10/11-Desktop-PC (nur Windows-Server-Runner im CI).
+* Android: nur Android 14 (Emulator, x86_64). Ältere Android-Versionen (Mindest-API 24 = Android 7) **ungetestet**;
+  auf Android 7–10 schlägt das Schreiben in den öffentlichen Download-Ordner voraussichtlich fehl → Rückfall auf den
+  app-spezifischen Ordner (dann bei Deinstallation gelöscht).
+* Android: getestet wurde die **Debug**-APK; die ausgelieferte **Release**-APK (ARM, signiert, minimiert) ist gebaut und
+  signaturgeprüft (`apksigner verify`), aber nicht auf einem Gerät gestartet.
+* Echte Touch-Gesten (Zwei-Finger-Zoom, Ziehen) – im Emulator wurden Tipps als Zeigerereignisse gesendet.
+* Kamera, Fotoimport aus der Galerie auf Android, große Fotos (> 10 MB) auf Android.
+* MSI-Installer (nur NSIS-Setup wurde installiert und getestet), Deinstallation, Update-Installation über eine ältere Version.
+* Windows SmartScreen-Verhalten beim ersten Start (nicht signiert) – auf CI-Runnern nicht prüfbar.
+* Druck auf Papier (Maßstabstreue), Performance großer Projekte.
+
+---
+
+## Version 0.1 – Erstbericht
 
 Stand: 2026-11-11 · Umgebung: Linux x86_64 (Ubuntu 24.04-Container), Node 22, Rust 1.97, Chromium (Playwright), WebKitGTK 4.1 (nativ, Xvfb)
 

@@ -1,6 +1,18 @@
 # Entwicklungsstand – Lebenswerk Adorf PlanStudio
 
-_Letzte Aktualisierung: 2026-11-11 · Version 0.1.0 (MVP)_
+_Letzte Aktualisierung: 2026-11-12 · Version 0.1.1_
+
+## Stand 0.1.1 – Plattformen
+| Plattform | Installierbar | Automatisch getestet (installierte App) | Auf echter Hardware getestet |
+|---|---|---|---|
+| Windows | ✅ NSIS-Setup + MSI (CI-Artefakt) | ✅ CI-Runner: Installation, Start, SQLite, Import, Absturz, Neustart, Export | ❌ noch nicht |
+| Linux | ✅ .deb + AppImage | ✅ CI + lokal | ❌ (nur Container/CI) |
+| Android | ✅ signierte APK (Testsignatur, solange kein eigener Schlüssel hinterlegt ist) | ✅ Android-14-Tablet-Emulator (Debug-APK) | ❌ noch nicht |
+
+Builds: GitHub Actions „PlanStudio Build“ (`.github/workflows/planstudio-build.yml`), Anleitung `INSTALL.md`.
+Nächster Schritt mit dir: Installation auf deinem Windows-PC und Android-Tablet, Test mit echten Gebäudedaten aus Adorf,
+Rückmeldungen zur Oberfläche sammeln (siehe „Nächste konkrete Aufgaben“).
+
 
 ## Aktueller Stand
 MVP gemäß Abschnitt 19 der Anforderung ist implementiert und getestet (Browser + native Linux-App).
@@ -45,8 +57,8 @@ Alle Daten liegen in einer lokalen SQLite-Datenbank; jede Änderung wird sofort 
 
 ## Unvollständige Funktionen / bewusst nicht im MVP
 * 3D-Ansicht (Three.js) – Datenmodell vorbereitet.
-* Android: nicht gebaut/getestet; Export-Ablage auf Android liegt im App-Ordner (Teilen-Funktion fehlt); Kameraaufnahme direkt fehlt (Dateiauswahl nutzbar).
-* Windows: nicht gebaut/getestet (Build-Prozess dokumentiert, CI-Workflow vorbereitet).
+* Android: Teilen-Funktion für Exporte und direkte Kameraaufnahme fehlen (Dateiauswahl funktioniert).
+* Kein Auto-Update; Windows-Installer nicht mit Code-Signing-Zertifikat signiert (SmartScreen-Hinweis).
 * Elektro-Bemessung, Selektivität, Normprüfung: absichtlich nicht vorhanden (nur Dokumentation).
 * Sanitär: Gefälle/Hydraulik fehlen.
 * Automatische Stromlaufplan-Generierung fehlt.
@@ -64,9 +76,9 @@ Alle Daten liegen in einer lokalen SQLite-Datenbank; jede Änderung wird sofort 
 Siehe `TEST_REPORT.md`: tsc ✅, Vitest 20/20 ✅, Rust 3/3 ✅, Browser-E2E 24/24 ✅, nativ 7/7 ✅, Linux-Pakete gebaut ✅.
 
 ## Nächste konkrete Aufgaben
-1. Windows-Build über `PlanStudio Build`-Workflow oder lokal ausführen und Rauchtest (Start, Projekt, Neustart, Export).
-2. Android-SDK/NDK bereitstellen → `tauri android init` → APK bauen → auf Tablet testen (Touch, Dateiimport, Export/Teilen).
-3. Android: Exporte über System-Teilen-Dialog bzw. öffentlichen Download-Ordner bereitstellen; Kamera-Import.
+1. Praxistest auf deinen Geräten (Windows-PC, Android-Tablet) mit echten Gebäudedaten aus Adorf; Probleme/Wünsche sammeln.
+2. Eigenen Android-Signaturschlüssel als GitHub-Secret hinterlegen (sonst Updates nur mit Deinstallation, siehe INSTALL.md).
+3. Android: Teilen-Dialog für Exporte, Kamera-Import; Test auf Android < 11 (öffentlicher Download-Ordner).
 4. Wandverschneidungen (Gehrung/T-Stoß), Raum aus Wänden, Rubber-Band-Auswahl.
 5. Mehrseitiger PDF-Export (alle Geschosse/Fachpläne).
 

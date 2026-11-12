@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ccr-052273e9-182u17]
-    paths: ['planstudio/**', '.github/workflows/planstudio-build.yml']
+    paths: ['planstudio/**', '!planstudio/**/*.md', '!planstudio/docs/**', '.github/workflows/planstudio-build.yml']
 
 concurrency:
   group: planstudio-${{ github.ref }}
