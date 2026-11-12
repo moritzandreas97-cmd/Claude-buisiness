@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0] – 2026-11-12 – Bestandsaufnahme / Rekonstruktion
+
+### Hinzugefügt
+- Modul **Bestandsaufnahme**: Quellenkatalog (Videos, Dokumente, Bilder, Nutzerangaben; „kein Beleg“-Kennzeichnung),
+  Raumkarten mit Raum-ID und Unsicherheitsstufe, Verbindungen (Nachbarschaftsgraph getrennt von der Planlage), Graph-Ansicht.
+- Status `beobachtet` / `nutzerangabe` / `hypothese` / `ungeklaert` / `bestaetigt` für Räume, Bauteile und Planobjekte;
+  Quellenverweise mit Fundstelle (Zeitstempel/Seite) im Eigenschaftenfenster.
+- Unplatzierte Raumkarten im Planungsstudio; „Einzeichnen“ ordnet die Zeichnung der bestehenden Karte zu.
+- Hintergrundbild je Geschoss (z. B. Luftbild) mit Breite, Position, Drehung, Deckkraft.
+- Verbindungen zwischen eingezeichneten Räumen im Plan, nach Status gestrichelt (Ebene abschaltbar).
+- Datenbankmigration v2 (bestehende Daten bleiben erhalten; getestet).
+- Projektspezifische Bestandsdaten (Importdateien) werden nicht im Repository abgelegt (`planstudio/data/` ist ignoriert).
+
 ## [0.1.1] – 2026-11-12 – installierbare Builds für die Zielgeräte
 
 ### Hinzugefügt

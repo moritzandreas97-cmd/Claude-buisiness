@@ -6,3 +6,5 @@ test-results/
 *.log
 src-tauri/gen/
 *.tsbuildinfo
+data/
+scripts/adorf-*.ts

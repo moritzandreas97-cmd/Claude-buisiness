@@ -12,7 +12,7 @@ function base(): { data: ProjectData; floor: string } {
   const data = emptyProjectData();
   const ts = 'x';
   data.buildings.b = { id: 'b', project_id: 'p', name: 'B', description: null, created_at: ts, updated_at: ts };
-  data.floors.f = { id: 'f', building_id: 'b', name: 'EG', elevation_mm: 0, height_mm: 2500, sort_order: 0, created_at: ts, updated_at: ts };
+  data.floors.f = { id: 'f', building_id: 'b', name: 'EG', elevation_mm: 0, height_mm: 2500, sort_order: 0, background: null, created_at: ts, updated_at: ts };
   return { data, floor: 'f' };
 }
 const run = <R,>(d: ProjectData, fn: (tx: Tx) => R) => { const tx = new Tx(d); const r = fn(tx); return { r, data: applyChanges(d, tx.changes, 'forward'), tx }; };

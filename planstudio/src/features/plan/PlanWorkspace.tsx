@@ -4,6 +4,7 @@ import { useUi, type PlanMode } from '../../store/uiStore';
 import { PlanEditor } from './PlanEditor';
 import { PropertiesPanel } from '../props/PropertiesPanel';
 import { cn } from '../../ui/primitives';
+import { UnplacedRooms } from '../bestand/UnplacedRooms';
 
 const MODES: { v: PlanMode; label: string; icon: ReactNode }[] = [
   { v: 'architecture', label: 'Grundriss', icon: <PencilRuler size={15} /> },
@@ -37,6 +38,7 @@ export function PlanWorkspace({ modes, fixedMode, focusRoomId, side, header }: {
         {!ui.propsCollapsed && (
           <aside className="w-72 shrink-0 overflow-y-auto border-l border-line bg-panel max-md:absolute max-md:bottom-7 max-md:right-0 max-md:top-24 max-md:z-20 max-md:shadow-2xl" aria-label="Eigenschaften" data-testid="properties">
             {side}
+            {ui.mode === 'architecture' && <UnplacedRooms />}
             <PropertiesPanel />
           </aside>
         )}

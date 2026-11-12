@@ -11,6 +11,8 @@ import { Badge, Button, Field } from '../../ui/primitives';
 import { CommitInput, LengthField, SelectField, TextField, fmtMoney, parseMoney, parseNumber } from '../../ui/fields';
 import { bus } from '../../lib/bus';
 import type { Layers } from '../plan/PlanRenderer';
+import { EvidenceSection } from '../bestand/Evidence';
+import { BackgroundControls } from '../bestand/BackgroundControls';
 
 function useRun() {
   const mutate = useProject((s) => s.mutate);
@@ -83,6 +85,7 @@ function WallProps({ c }: { c: Component }) {
     <div>
       <Header title="Wand" sub={`${formatMm(L)} · ${formatMm(g.thickness)} stark`} id={c.id} />
       <Actions sel={[{ table: 'components', id: c.id }]} />
+      <EvidenceSection table="components" id={c.id} certainty={c.certainty} onCertainty={(v) => run('Status', (tx) => tx.update('components', c.id, { certainty: v }))} />
       <Section title="Geometrie">
         <LengthField label="Länge" value={L} min={ops.MIN_WALL} onCommit={(v) => run('Wandlänge ändern', (tx) => ops.setWallLength(tx, c.id, v!))} hint="Endpunkt wird entlang der Wandachse verschoben; angeschlossene Wände folgen." />
         <Grid2>
@@ -124,6 +127,7 @@ function OpeningProps({ c }: { c: Component }) {
     <div>
       <Header title={c.type === 'door' ? 'Tür' : 'Fenster'} sub={wall ? `in Wand (${formatMm(L)})` : 'ohne Wand!'} id={c.id} />
       <Actions sel={[{ table: 'components', id: c.id }]} copy={false} />
+      <EvidenceSection table="components" id={c.id} certainty={c.certainty} onCertainty={(v) => run('Status', (tx) => tx.update('components', c.id, { certainty: v }))} />
       <Section title="Abmessungen">
         <Grid2>
           <LengthField label="Breite" value={g.width} min={100} onCommit={(v) => upd({ width: v! })} />
@@ -156,6 +160,7 @@ function DimProps({ c }: { c: Component }) {
     <div>
       <Header title="Maßlinie" sub={formatMm(Math.hypot(g.x2 - g.x1, g.y2 - g.y1))} id={c.id} />
       <Actions sel={[{ table: 'components', id: c.id }]} rotate={false} />
+      <EvidenceSection table="components" id={c.id} certainty={c.certainty} onCertainty={(v) => run('Status', (tx) => tx.update('components', c.id, { certainty: v }))} />
       <Section title="Darstellung">
         <Field label="Abstand zur Messstrecke (mm, negativ = andere Seite)">
           <CommitInput value={g.offset} parse={parseNumber} onCommit={(v) => run('Maßlinie', (tx) => tx.update('components', c.id, { geometry: { ...g, offset: v as number } }))} />
@@ -175,6 +180,7 @@ function BoxProps({ c }: { c: Component }) {
     <div>
       <Header title={title} sub={`${formatMm(g.w)} × ${formatMm(g.d)} × ${formatMm(g.h)}`} id={c.id} />
       <Actions sel={[{ table: 'components', id: c.id }]} />
+      <EvidenceSection table="components" id={c.id} certainty={c.certainty} onCertainty={(v) => run('Status', (tx) => tx.update('components', c.id, { certainty: v }))} />
       <Section title="Parameter">
         <TextField label="Bezeichnung" value={(c.props?.name as string) ?? null} onCommit={(v) => run('Bezeichnung', (tx) => tx.update('components', c.id, { props: { ...c.props, name: v } }))} />
         {c.type === 'furniture' && <SelectField label="Möbeltyp" value={(c.props?.kind as string) ?? 'custom'} options={FURNITURE.map((f) => ({ v: f.type, label: f.label }))} onChange={(v) => run('Möbeltyp', (tx) => tx.update('components', c.id, { props: { ...c.props, kind: v } }))} />}
@@ -210,6 +216,7 @@ function ObjectProps({ o }: { o: PlanObject }) {
     <div>
       <Header title={o.name || def?.label || o.type} sub={`${o.discipline === 'electrical' ? 'Elektro' : 'Sanitär'} · ${def?.label ?? o.type}`} id={o.id} />
       <Actions sel={[{ table: 'plan_objects', id: o.id }]} />
+      <EvidenceSection table="plan_objects" id={o.id} certainty={o.certainty} onCertainty={(v) => upd({ certainty: v })} />
       <Section title="Kennzeichnung">
         <TextField label="Bezeichnung" value={o.name} onCommit={(v) => upd({ name: v })} />
         <TextField label="Betriebsmittelkennzeichnung (BMK)" value={o.label} placeholder="z. B. -XD1" onCommit={(v) => upd({ label: v })} />
@@ -299,11 +306,13 @@ function RoomProps({ r }: { r: Room }) {
   const tasks = Object.values(data.tasks).filter((t) => t.room_id === r.id);
   return (
     <div>
-      <Header title={r.name} sub={`${r.area_m2?.toLocaleString('de-DE') ?? '–'} m²`} id={r.id} />
+      <Header title={(r.code ? r.code + ' · ' : '') + r.name} sub={r.polygon ? `${r.area_m2?.toLocaleString('de-DE') ?? '–'} m²` : 'noch nicht eingezeichnet'} id={r.id} />
       <Actions sel={[{ table: 'rooms', id: r.id }]} />
+      <EvidenceSection table="rooms" id={r.id} certainty={r.certainty} onCertainty={(v) => upd({ certainty: v })} />
       <div className="px-3 pt-2"><Button size="sm" onClick={() => bus.emit('zoom-room', r.id)}><ZoomIn size={13} />Auf Raum zoomen</Button></div>
       <Section title="Raumdaten">
         <TextField label="Name" value={r.name} onCommit={(v) => { if (!v) throw new Error('Name darf nicht leer sein.'); return upd({ name: v }); }} />
+        <TextField label="Raum-ID (z. B. EG-G1-01)" value={r.code} onCommit={(v) => upd({ code: v })} />
         <SelectField label="Nutzungsart" value={r.usage} allowEmpty="–" options={ROOM_USAGES.map((u) => ({ v: u, label: u }))} onChange={(v) => upd({ usage: v })} />
         <SelectField label="Status" value={r.status} options={[...ROOM_STATUS]} onChange={(v) => upd({ status: (v ?? 'geplant') as Room['status'] })} />
         <Field label="Fläche (aus Raumpolygon)">{ro(`${r.area_m2?.toLocaleString('de-DE', { maximumFractionDigits: 2 }) ?? '–'} m²`)}</Field>
@@ -332,9 +341,9 @@ function NothingSelected() {
   const floor = useProject((s) => (ui.floorId ? s.data.floors[ui.floorId] : undefined));
   const data = useProject((s) => s.data);
   const run = useRun();
-  const toggle = (k: keyof Layers) => ui.set({ layers: { ...ui.layers, [k]: !ui.layers[k] } });
+  const toggle = (k: keyof Layers) => ui.set({ layers: { ...ui.layers, [k]: ui.layers[k] === false } });
   const rooms = Object.values(data.rooms).filter((r) => r.floor_id === ui.floorId);
-  const layerNames: [keyof Layers, string][] = [['walls', 'Wände & Öffnungen'], ['rooms', 'Räume'], ['dims', 'Bemaßung'], ['electrical', 'Elektroebene'], ['sanitary', 'Sanitärebene'], ['interior', 'Innenausbau / Möbel'], ['labels', 'Beschriftungen']];
+  const layerNames: [keyof Layers, string][] = [['background', 'Hintergrundbild'], ['links', 'Raumverbindungen'], ['walls', 'Wände & Öffnungen'], ['rooms', 'Räume'], ['dims', 'Bemaßung'], ['electrical', 'Elektroebene'], ['sanitary', 'Sanitärebene'], ['interior', 'Innenausbau / Möbel'], ['labels', 'Beschriftungen']];
   return (
     <div>
       <div className="border-b border-line px-3 py-3"><div className="text-sm font-semibold">Eigenschaften</div><div className="text-xs text-muted">Kein Objekt ausgewählt</div></div>
@@ -347,9 +356,14 @@ function NothingSelected() {
           </Grid2>
         </Section>
       )}
+      {floor && (
+        <Section title="Hintergrundbild (z. B. Luftbild)">
+          <BackgroundControls floor={floor} />
+        </Section>
+      )}
       <Section title="Ebenen">
         {layerNames.map(([k, label]) => (
-          <label key={k} className="flex items-center justify-between text-sm"><span>{label}</span><input type="checkbox" aria-label={`Ebene ${label}`} checked={ui.layers[k]} onChange={() => toggle(k)} /></label>
+          <label key={k} className="flex items-center justify-between text-sm"><span>{label}</span><input type="checkbox" aria-label={`Ebene ${label}`} checked={ui.layers[k] !== false} onChange={() => toggle(k)} /></label>
         ))}
       </Section>
       <Section title="Filter">

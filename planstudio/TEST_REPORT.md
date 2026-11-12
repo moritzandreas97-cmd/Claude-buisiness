@@ -1,5 +1,15 @@
 # Testbericht – Lebenswerk Adorf PlanStudio
 
+## Version 0.2.0 – Bestandsaufnahme (2026-11-12, lokal: Chromium + sql.js)
+| Test | Ergebnis |
+|---|---|
+| Unit: Migration v1 → v2 mit vorhandenen Daten | ✅ |
+| Unit (lokal, mit Projekt-Importdatei): Import → SQLite, keine Geometrie erfunden, alle Quellenverweise gültig, Zweitimport = Kopie, Backup-Rundlauf, Löschen + Undo von Raum mit Verbindungen/Verweisen | ✅ (in CI übersprungen, da Projektdaten nicht im Repository) |
+| Browser-E2E Bestand (7): Import, alle Ansichten, Karte einzeichnen, Hintergrundbild, Status + Undo, Neustart | ✅ 7/7 (lokal) |
+| Browser-E2E Gesamtworkflow (Regression) | ✅ 24/24 |
+| Plattformbuilds 0.2.0 | siehe GitHub Actions „PlanStudio Build“ |
+
+
 ## Version 0.1.1 – Plattformtests (2026-11-12, GitHub Actions „PlanStudio Build“, Lauf #5)
 
 Alle Tests laufen automatisiert bei jedem Build. Getestet wird jeweils die **installierte** bzw. installierbare App

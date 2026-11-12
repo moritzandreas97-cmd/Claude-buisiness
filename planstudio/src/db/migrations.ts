@@ -106,4 +106,30 @@ CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_materials_project ON materials(project_id);
 `,
   },
+  {
+    version: 2,
+    name: 'bestandsaufnahme: quellen, status, verbindungen, hintergrund',
+    sql: `
+ALTER TABLE floors ADD COLUMN background TEXT;
+ALTER TABLE rooms ADD COLUMN code TEXT;
+ALTER TABLE rooms ADD COLUMN certainty TEXT;
+ALTER TABLE components ADD COLUMN certainty TEXT;
+ALTER TABLE plan_objects ADD COLUMN certainty TEXT;
+CREATE TABLE sources (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, file_name TEXT NOT NULL CHECK(length(trim(file_name)) > 0), title TEXT, description TEXT,
+  use_as_evidence INTEGER NOT NULL DEFAULT 1, document_id TEXT REFERENCES documents(id) ON DELETE SET NULL, ${ts});
+CREATE TABLE source_refs (
+  id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  ref_table TEXT NOT NULL, ref_id TEXT NOT NULL, locator TEXT, note TEXT, ${ts});
+CREATE INDEX idx_source_refs_ref ON source_refs(ref_table, ref_id);
+CREATE TABLE room_links (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  from_room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  to_room_id TEXT REFERENCES rooms(id) ON DELETE CASCADE, to_label TEXT,
+  kind TEXT NOT NULL DEFAULT 'durchgang', certainty TEXT NOT NULL DEFAULT 'ungeklaert', note TEXT, ${ts},
+  CHECK(to_room_id IS NOT NULL OR length(trim(coalesce(to_label, ''))) > 0),
+  CHECK(to_room_id IS NULL OR to_room_id <> from_room_id));
+`,
+  },
 ];

@@ -81,6 +81,9 @@ const PROJECT_FILTER: Record<Exclude<TableName, 'projects'>, string> = {
   expenses: 'project_id = ?1',
   documents: 'project_id = ?1',
   room_variants: 'room_id IN (SELECT r.id FROM rooms r JOIN floors f ON f.id = r.floor_id JOIN buildings b ON b.id = f.building_id WHERE b.project_id = ?1)',
+  sources: 'project_id = ?1',
+  source_refs: 'source_id IN (SELECT id FROM sources WHERE project_id = ?1)',
+  room_links: 'project_id = ?1',
 };
 
 export async function loadProjectData(db: SqlDriver, projectId: string): Promise<ProjectData> {

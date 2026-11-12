@@ -1,6 +1,14 @@
 # Entwicklungsstand – Lebenswerk Adorf PlanStudio
 
-_Letzte Aktualisierung: 2026-11-12 · Version 0.1.1_
+_Letzte Aktualisierung: 2026-11-12 · Version 0.2.0_
+
+## Neu in 0.2.0 – Bestandsaufnahme
+Modul *Bestandsaufnahme* (Quellen, Raumkarten, Verbindungen, Graph), Unsicherheitsstufen + Quellenverweise je Objekt,
+unplatzierte Raumkarten zum Einzeichnen, Hintergrundbild je Geschoss. Anleitung: `docs/BESTANDSAUFNAHME.md`.
+Projektdaten (z. B. Adorf-Importdatei) liegen bewusst nicht im Repository.
+Offen: Hintergrundbild nicht im PDF/SVG-Export; Verbindungen im Plan nur zwischen eingezeichneten Räumen (sonst im Graph);
+keine Videowiedergabe/Zeitstempel-Erfassung in der App (Fundstelle wird von Hand eingetragen).
+
 
 ## Stand 0.1.1 – Plattformen
 | Plattform | Installierbar | Automatisch getestet (installierte App) | Auf echter Hardware getestet |

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Pt } from '../model/types';
 import { ALL_LAYERS, type Layers } from '../features/plan/PlanRenderer';
 
-export type ModuleId = 'dashboard' | 'building' | 'plan' | 'room' | 'electrical' | 'sanitary' | 'phases' | 'tasks' | 'materials' | 'costs' | 'docs' | 'reports' | 'settings';
+export type ModuleId = 'dashboard' | 'building' | 'bestand' | 'plan' | 'room' | 'electrical' | 'sanitary' | 'phases' | 'tasks' | 'materials' | 'costs' | 'docs' | 'reports' | 'settings';
 export type PlanMode = 'architecture' | 'electrical' | 'sanitary' | 'interior';
 export type Tool =
   | 'select' | 'pan' | 'wall' | 'room' | 'room_rect' | 'door' | 'window' | 'dimension' | 'measure'
@@ -33,6 +33,7 @@ interface UiState {
   wallThickness: number;
   roomFilter: string | null;
   activeCircuitId: string | null;
+  placeRoomId: string | null;
   cableType: string;
   toasts: Toast[];
   set(patch: Partial<UiState>): void;
@@ -70,6 +71,7 @@ export const useUi = create<UiState>((set, get) => ({
   wallThickness: pref('wallThickness', 240),
   roomFilter: null,
   activeCircuitId: null,
+  placeRoomId: null,
   cableType: 'NYM-J 3x1,5',
   toasts: [],
   set(patch) {

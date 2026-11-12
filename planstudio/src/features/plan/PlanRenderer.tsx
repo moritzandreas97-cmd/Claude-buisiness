@@ -1,13 +1,13 @@
 import type { ProjectData } from '../../db/repository';
 import type { BoxGeom, Component, DimensionGeom, Line, OpeningGeom, PlanObject, Pt, Room, WallGeom } from '../../model/types';
 import { add, boxCorners, dist, mul, norm, openingFrame, perp, polygonCentroid, sub, toScreen, wallLength, wallPolygon, type ViewTransform } from '../../model/geometry';
-import { lineTypeDef, furnitureDef, symbolDef } from '../../model/catalog';
+import { lineTypeDef, furnitureDef, symbolDef, certaintyDef } from '../../model/catalog';
 import { SymbolShape } from './symbols';
 
 const FONT = 'Helvetica, Arial, sans-serif';
 
-export interface Layers { rooms: boolean; walls: boolean; dims: boolean; electrical: boolean; sanitary: boolean; interior: boolean; labels: boolean }
-export const ALL_LAYERS: Layers = { rooms: true, walls: true, dims: true, electrical: true, sanitary: true, interior: true, labels: true };
+export interface Layers { rooms: boolean; walls: boolean; dims: boolean; electrical: boolean; sanitary: boolean; interior: boolean; labels: boolean; links?: boolean; background?: boolean }
+export const ALL_LAYERS: Layers = { rooms: true, walls: true, dims: true, electrical: true, sanitary: true, interior: true, labels: true, links: true, background: true };
 
 export interface Palette {
   paper: string; wallFill: string; wallStroke: string; roomFill: string; roomStroke: string; text: string; textMuted: string;
@@ -23,6 +23,7 @@ export interface RenderOpts {
   unit: number; fontSize: number; selected?: Set<string>; interactive?: boolean;
   /** Fachbereichsfilter: andere Fachbereiche abgeschwächt darstellen */
   focus?: 'electrical' | 'sanitary' | 'interior' | null; roomFilter?: string | null;
+  /** Objekt-URL des Hintergrundbilds (nur Bildschirm) */ backgroundUrl?: string | null;
 }
 
 const pts = (v: ViewTransform, list: Pt[]) => list.map((p) => { const s = toScreen(v, p); return `${s.x.toFixed(2)},${s.y.toFixed(2)}`; }).join(' ');
@@ -65,9 +66,23 @@ export function PlanContent(o: RenderOpts & { data: ProjectData }) {
   const roomOk = (roomId: string | null) => !o.roomFilter || roomId === o.roomFilter;
   const hit = interactive ? 'all' : 'none';
 
+  const floor = data.floors[floorId];
+  const bg = floor?.background;
+  const roomById = new Map(rooms.map((r) => [r.id, r]));
+  const links = layers.links !== false ? Object.values(data.room_links ?? {}).filter((l) => roomById.has(l.from_room_id) && l.to_room_id && roomById.has(l.to_room_id)) : [];
   return (
     <g>
+      {o.backgroundUrl && bg && bg.visible && layers.background !== false && (() => {
+        const tl = toScreen(v, { x: bg.x, y: bg.y });
+        const w = bg.width_mm * v.scale;
+        return <image href={o.backgroundUrl} x={tl.x} y={tl.y} width={w} opacity={bg.opacity} preserveAspectRatio="xMinYMin meet" transform={`rotate(${-bg.rotation} ${tl.x} ${tl.y})`} pointerEvents="none" style={{ imageRendering: 'auto' }} />;
+      })()}
       {layers.rooms && rooms.map((r) => <RoomShape key={r.id} r={r} o={o} sel={sel(r.id)} />)}
+      {links.map((l) => {
+        const a = toScreen(v, polygonCentroid(roomById.get(l.from_room_id)!.polygon!)), b = toScreen(v, polygonCentroid(roomById.get(l.to_room_id!)!.polygon!));
+        const c = certaintyDef(l.certainty);
+        return <g key={l.id} pointerEvents="none"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={c?.color ?? P.textMuted} strokeWidth={1.6 * u} strokeDasharray={c?.dash ? c.dash.split(' ').map((n) => Number(n) * u).join(' ') : undefined} strokeLinecap="round" /><circle cx={a.x} cy={a.y} r={2.5 * u} fill={c?.color ?? P.textMuted} /><circle cx={b.x} cy={b.y} r={2.5 * u} fill={c?.color ?? P.textMuted} /></g>;
+      })}
 
       {layers.interior && <g opacity={dimOp('interior')}>{interior.map((c) => <BoxShape key={c.id} c={c} o={o} sel={sel(c.id)} />)}</g>}
 
@@ -111,12 +126,13 @@ export function PlanContent(o: RenderOpts & { data: ProjectData }) {
 function RoomShape({ r, o, sel }: { r: Room; o: RenderOpts; sel: boolean }) {
   const { view: v, palette: P, unit: u, fontSize: fs } = o;
   const c = toScreen(v, polygonCentroid(r.polygon!));
+  const cert = certaintyDef(r.certainty);
   return (
     <g>
-      <polygon data-kind="rooms" data-id={r.id} pointerEvents={o.interactive ? 'all' : 'none'} points={pts(v, r.polygon!)} fill={sel ? 'rgba(59,130,246,0.18)' : P.roomFill} stroke={sel ? P.select : P.roomStroke} strokeWidth={(sel ? 2 : 1) * u} strokeDasharray={`${4 * u} ${3 * u}`} />
+      <polygon data-kind="rooms" data-id={r.id} pointerEvents={o.interactive ? 'all' : 'none'} points={pts(v, r.polygon!)} fill={sel ? 'rgba(59,130,246,0.18)' : P.roomFill} stroke={sel ? P.select : cert ? cert.color : P.roomStroke} strokeWidth={(sel ? 2 : cert ? 1.5 : 1) * u} strokeDasharray={cert ? (cert.dash ? cert.dash.split(' ').map((n) => Number(n) * u).join(' ') : undefined) : `${4 * u} ${3 * u}`} />
       {o.layers.labels && (
         <text x={c.x} y={c.y} textAnchor="middle" fontFamily={FONT} pointerEvents="none">
-          <tspan x={c.x} fontFamily={FONT} fontSize={fs * 1.1} fontWeight={600} fill={P.text}>{r.name}</tspan>
+          <tspan x={c.x} fontFamily={FONT} fontSize={fs * 1.1} fontWeight={600} fill={P.text}>{r.code ? `${r.code} ` : ''}{r.name}</tspan>
           {r.area_m2 != null && <tspan x={c.x} fontFamily={FONT} dy={fs * 1.3} fontSize={fs * 0.9} fill={P.textMuted}>{r.area_m2.toLocaleString('de-DE', { maximumFractionDigits: 2 })} m²</tspan>}
         </text>
       )}

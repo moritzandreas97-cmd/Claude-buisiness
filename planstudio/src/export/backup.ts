@@ -26,7 +26,7 @@ export async function createBackup(platform: Platform, projectId: string): Promi
     const bytes = await platform.files.get(d.storage_key);
     if (bytes) files[d.storage_key] = toBase64(bytes);
   }
-  return { format: BACKUP_FORMAT, version: 1, schema_version: MIGRATIONS[MIGRATIONS.length - 1].version, exported_at: nowIso(), app: 'Lebenswerk Adorf PlanStudio 0.1.1', project, tables, files };
+  return { format: BACKUP_FORMAT, version: 1, schema_version: MIGRATIONS[MIGRATIONS.length - 1].version, exported_at: nowIso(), app: 'Lebenswerk Adorf PlanStudio 0.2.0', project, tables, files };
 }
 
 export function validateBackup(x: unknown): asserts x is BackupFile {
@@ -74,6 +74,11 @@ export async function restoreBackup(platform: Platform, backup: unknown): Promis
           fileCopies.push([r.storage_key as string, key]);
           row.storage_key = key;
         }
+      }
+      if (t === 'source_refs') row.ref_id = mapId(r.ref_id as string);
+      if (t === 'floors' && r.background && exists) {
+        const bg = r.background as { document_id?: string };
+        row.background = { ...bg, document_id: mapId(bg.document_id) };
       }
       if (t === 'room_variants' && exists) {
         const d = r.data as { components?: AnyRow[] } | null;

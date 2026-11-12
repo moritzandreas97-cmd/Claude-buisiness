@@ -8,11 +8,11 @@ export type ColType = 'text' | 'int' | 'real' | 'json';
 export const TABLES = {
   projects: { id: 'text', name: 'text', description: 'text', budget_cents: 'int', project_path: 'text', created_at: 'text', updated_at: 'text' },
   buildings: { id: 'text', project_id: 'text', name: 'text', description: 'text', created_at: 'text', updated_at: 'text' },
-  floors: { id: 'text', building_id: 'text', name: 'text', elevation_mm: 'real', height_mm: 'real', sort_order: 'int', created_at: 'text', updated_at: 'text' },
-  rooms: { id: 'text', floor_id: 'text', name: 'text', usage: 'text', polygon: 'json', area_m2: 'real', status: 'text', description: 'text', budget_cents: 'int', created_at: 'text', updated_at: 'text' },
-  components: { id: 'text', floor_id: 'text', room_id: 'text', type: 'text', geometry: 'json', material: 'text', props: 'json', status: 'text', host_id: 'text', created_at: 'text', updated_at: 'text' },
+  floors: { id: 'text', building_id: 'text', name: 'text', elevation_mm: 'real', height_mm: 'real', sort_order: 'int', background: 'json', created_at: 'text', updated_at: 'text' },
+  rooms: { id: 'text', floor_id: 'text', code: 'text', certainty: 'text', name: 'text', usage: 'text', polygon: 'json', area_m2: 'real', status: 'text', description: 'text', budget_cents: 'int', created_at: 'text', updated_at: 'text' },
+  components: { id: 'text', floor_id: 'text', room_id: 'text', certainty: 'text', type: 'text', geometry: 'json', material: 'text', props: 'json', status: 'text', host_id: 'text', created_at: 'text', updated_at: 'text' },
   circuits: { id: 'text', project_id: 'text', designation: 'text', name: 'text', distribution: 'text', props: 'json', status: 'text', notes: 'text', created_at: 'text', updated_at: 'text' },
-  plan_objects: { id: 'text', floor_id: 'text', discipline: 'text', type: 'text', x: 'real', y: 'real', rotation: 'real', mount_height_mm: 'real', room_id: 'text', circuit_id: 'text', label: 'text', name: 'text', props: 'json', status: 'text', notes: 'text', created_at: 'text', updated_at: 'text' },
+  plan_objects: { id: 'text', floor_id: 'text', certainty: 'text', discipline: 'text', type: 'text', x: 'real', y: 'real', rotation: 'real', mount_height_mm: 'real', room_id: 'text', circuit_id: 'text', label: 'text', name: 'text', props: 'json', status: 'text', notes: 'text', created_at: 'text', updated_at: 'text' },
   lines: { id: 'text', floor_id: 'text', discipline: 'text', line_type: 'text', points: 'json', start_object_id: 'text', end_object_id: 'text', circuit_id: 'text', length_mm: 'real', props: 'json', notes: 'text', created_at: 'text', updated_at: 'text' },
   schematic_pages: { id: 'text', project_id: 'text', name: 'text', sort_order: 'int', created_at: 'text', updated_at: 'text' },
   schematic_symbols: { id: 'text', page_id: 'text', type: 'text', x: 'real', y: 'real', rotation: 'real', label: 'text', plan_object_id: 'text', circuit_id: 'text', props: 'json', created_at: 'text', updated_at: 'text' },
@@ -24,6 +24,9 @@ export const TABLES = {
   expenses: { id: 'text', project_id: 'text', description: 'text', amount_cents: 'int', date: 'text', category: 'text', room_id: 'text', task_id: 'text', material_id: 'text', notes: 'text', created_at: 'text', updated_at: 'text' },
   documents: { id: 'text', project_id: 'text', kind: 'text', title: 'text', file_name: 'text', mime: 'text', size: 'int', storage_key: 'text', description: 'text', room_id: 'text', ref_table: 'text', ref_id: 'text', text: 'text', defect_status: 'text', created_at: 'text', updated_at: 'text' },
   room_variants: { id: 'text', room_id: 'text', name: 'text', data: 'json', created_at: 'text', updated_at: 'text' },
+  sources: { id: 'text', project_id: 'text', kind: 'text', file_name: 'text', title: 'text', description: 'text', use_as_evidence: 'int', document_id: 'text', created_at: 'text', updated_at: 'text' },
+  source_refs: { id: 'text', source_id: 'text', ref_table: 'text', ref_id: 'text', locator: 'text', note: 'text', created_at: 'text', updated_at: 'text' },
+  room_links: { id: 'text', project_id: 'text', from_room_id: 'text', to_room_id: 'text', to_label: 'text', kind: 'text', certainty: 'text', note: 'text', created_at: 'text', updated_at: 'text' },
 } as const satisfies Record<string, Record<string, ColType>>;
 
 export type TableName = keyof typeof TABLES;
@@ -78,13 +81,19 @@ export const RELATIONS: Relation[] = [
   { table: 'documents', column: 'project_id', ref: 'projects', onDelete: 'cascade' },
   { table: 'documents', column: 'room_id', ref: 'rooms', onDelete: 'setnull' },
   { table: 'room_variants', column: 'room_id', ref: 'rooms', onDelete: 'cascade' },
+  { table: 'sources', column: 'project_id', ref: 'projects', onDelete: 'cascade' },
+  { table: 'sources', column: 'document_id', ref: 'documents', onDelete: 'setnull' },
+  { table: 'source_refs', column: 'source_id', ref: 'sources', onDelete: 'cascade' },
+  { table: 'room_links', column: 'project_id', ref: 'projects', onDelete: 'cascade' },
+  { table: 'room_links', column: 'from_room_id', ref: 'rooms', onDelete: 'cascade' },
+  { table: 'room_links', column: 'to_room_id', ref: 'rooms', onDelete: 'cascade' },
 ];
 
 /** Reihenfolge für Einfügen (Eltern vor Kindern) – wird z. B. beim Backup-Import genutzt. */
 export const INSERT_ORDER: TableName[] = [
   'projects', 'buildings', 'floors', 'rooms', 'circuits', 'components', 'plan_objects', 'lines',
   'schematic_pages', 'schematic_symbols', 'schematic_wires', 'phases', 'tasks', 'task_deps',
-  'materials', 'expenses', 'documents', 'room_variants',
+  'materials', 'expenses', 'documents', 'room_variants', 'sources', 'source_refs', 'room_links',
 ];
 
 /** Standardwerte für neue Zeilen (entsprechen den DB-Defaults). */
@@ -99,6 +108,8 @@ export const DEFAULTS: Partial<Record<TableName, Record<string, unknown>>> = {
   schematic_symbols: { rotation: 0 },
   phases: { sort_order: 0, status: 'geplant' },
   tasks: { priority: 'mittel', status: 'offen' },
+  sources: { use_as_evidence: 1 },
+  room_links: { kind: 'durchgang', certainty: 'ungeklaert' },
   materials: { unit: 'Stk', stock_qty: 0, required_qty: 0, status: 'benoetigt', source: 'manual' },
 };
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, Building2, PencilRuler, Sofa, Zap, Droplets, Milestone, ListChecks, Package, Euro, Camera, FileBarChart, Settings,
+  LayoutDashboard, Building2, ScanSearch, PencilRuler, Sofa, Zap, Droplets, Milestone, ListChecks, Package, Euro, Camera, FileBarChart, Settings,
   Save, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Download, Sun, Moon, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Loader2, AlertTriangle, CheckCircle2,
 } from 'lucide-react';
 import { createPlatform } from './lib/platform';
@@ -13,6 +13,7 @@ import { formatMm } from './model/geometry';
 import { dateTime } from './lib/format';
 import { Dashboard, ProjectGate } from './features/dashboard/Dashboard';
 import { BuildingPage } from './features/building/BuildingPage';
+import { BestandPage } from './features/bestand/BestandPage';
 import { PlanWorkspace } from './features/plan/PlanWorkspace';
 import { RoomStudio } from './features/room/RoomStudio';
 import { ElectricalPage } from './features/electrical/ElectricalPage';
@@ -28,6 +29,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 const NAV: { id: ModuleId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'building', label: 'Gebäude', icon: <Building2 size={18} /> },
+  { id: 'bestand', label: 'Bestandsaufnahme', icon: <ScanSearch size={18} /> },
   { id: 'plan', label: 'Planungsstudio', icon: <PencilRuler size={18} /> },
   { id: 'room', label: 'Raumstudio', icon: <Sofa size={18} /> },
   { id: 'electrical', label: 'Elektro', icon: <Zap size={18} /> },
@@ -163,6 +165,7 @@ function ModuleView() {
   switch (module) {
     case 'dashboard': return scroll(<Dashboard />);
     case 'building': return scroll(<BuildingPage />);
+    case 'bestand': return scroll(<BestandPage />);
     case 'plan': return floorId ? <PlanWorkspace modes={['architecture', 'electrical', 'sanitary', 'interior']} /> : null;
     case 'room': return <RoomStudio />;
     case 'electrical': return <ElectricalPage />;

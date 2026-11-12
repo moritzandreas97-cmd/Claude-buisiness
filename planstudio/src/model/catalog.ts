@@ -119,3 +119,21 @@ export const SCHEM_SYMBOLS: SchemSymbolDef[] = [
 export const schemDef = (t: string) => SCHEM_SYMBOLS.find((s) => s.type === t) ?? SCHEM_SYMBOLS[0];
 /** A3-Querformat in mm, Spalten 1–8, Zeilen A–F für Querverweise. */
 export const SCHEM_PAGE = { w: 420, h: 297, cols: 8, rows: 6, margin: 10 };
+
+/* ---------------- Bestandsaufnahme ---------------- */
+export const CERTAINTY = [
+  { v: 'beobachtet', label: 'Beobachtet (Video/Foto)', color: '#3b82f6', dash: '' },
+  { v: 'nutzerangabe', label: 'Nutzerangabe', color: '#a855f7', dash: '6 3' },
+  { v: 'hypothese', label: 'Hypothese', color: '#f59e0b', dash: '4 4' },
+  { v: 'ungeklaert', label: 'Ungeklärt', color: '#ef4444', dash: '1 4' },
+  { v: 'bestaetigt', label: 'Bestätigt (Aufmaß)', color: '#22c55e', dash: '' },
+] as const;
+export const certaintyDef = (v: string | null | undefined) => CERTAINTY.find((c) => c.v === v);
+export const LINK_KINDS = [
+  { v: 'tuer', label: 'Tür' }, { v: 'durchgang', label: 'Durchgang/Öffnung' }, { v: 'treppe', label: 'Treppe' },
+  { v: 'luke', label: 'Luke' }, { v: 'aussen', label: 'Außenzugang' }, { v: 'sonstiges', label: 'Sonstiges' },
+] as const;
+export const SOURCE_KINDS = [
+  { v: 'video', label: 'Video' }, { v: 'document', label: 'Dokument' }, { v: 'image', label: 'Bild/Luftbild' },
+  { v: 'user', label: 'Nutzerangabe' }, { v: 'other', label: 'Sonstiges' },
+] as const;

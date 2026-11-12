@@ -4,10 +4,14 @@ type Stamp = { created_at: string; updated_at: string };
 
 export interface Project extends Stamp { id: string; name: string; description: string | null; budget_cents: number | null; project_path: string | null }
 export interface Building extends Stamp { id: string; project_id: string; name: string; description: string | null }
-export interface Floor extends Stamp { id: string; building_id: string; name: string; elevation_mm: number; height_mm: number; sort_order: number }
+/** Hintergrundbild eines Geschosses (z. B. Luftbild): Position/Größe in Modell-mm, nur Orientierung – kein Maßbeleg. */
+export interface FloorBackground { document_id: string; x: number; y: number; width_mm: number; rotation: number; opacity: number; visible: boolean }
+export interface Floor extends Stamp { id: string; building_id: string; name: string; elevation_mm: number; height_mm: number; sort_order: number; background: FloorBackground | null }
+/** Unsicherheitsstufen der Bestandsaufnahme */
+export type Certainty = 'beobachtet' | 'nutzerangabe' | 'hypothese' | 'ungeklaert' | 'bestaetigt';
 export type RoomStatus = 'geplant' | 'in_arbeit' | 'fertig' | 'bestand';
 export interface Room extends Stamp {
-  id: string; floor_id: string; name: string; usage: string | null; polygon: Pt[] | null; area_m2: number | null;
+  id: string; floor_id: string; code: string | null; certainty: Certainty | null; name: string; usage: string | null; polygon: Pt[] | null; area_m2: number | null;
   status: RoomStatus; description: string | null; budget_cents: number | null;
 }
 
@@ -20,14 +24,14 @@ export interface BoxGeom { x: number; y: number; w: number; d: number; h: number
 
 export type ComponentType = 'wall' | 'door' | 'window' | 'dimension' | 'furniture' | 'podest' | 'beam' | 'plate';
 export interface Component extends Stamp {
-  id: string; floor_id: string; room_id: string | null; type: ComponentType;
+  id: string; floor_id: string; room_id: string | null; certainty: Certainty | null; type: ComponentType;
   geometry: WallGeom | OpeningGeom | DimensionGeom | BoxGeom; material: string | null;
   props: Record<string, unknown> | null; status: string; host_id: string | null;
 }
 
 export type Discipline = 'electrical' | 'sanitary';
 export interface PlanObject extends Stamp {
-  id: string; floor_id: string; discipline: Discipline; type: string; x: number; y: number; rotation: number;
+  id: string; floor_id: string; certainty: Certainty | null; discipline: Discipline; type: string; x: number; y: number; rotation: number;
   mount_height_mm: number | null; room_id: string | null; circuit_id: string | null; label: string | null;
   name: string | null; props: Record<string, unknown> | null; status: string; notes: string | null;
 }
@@ -80,9 +84,22 @@ export interface DocumentRow extends Stamp {
 }
 export interface RoomVariant extends Stamp { id: string; room_id: string; name: string; data: { components: Component[] } }
 
+export type SourceKind = 'video' | 'document' | 'image' | 'user' | 'other';
+export interface Source extends Stamp {
+  id: string; project_id: string; kind: SourceKind; file_name: string; title: string | null; description: string | null;
+  /** 0 = ausdrücklich kein Beleg (z. B. KI-Illustration) */ use_as_evidence: number; document_id: string | null;
+}
+export interface SourceRef extends Stamp { id: string; source_id: string; ref_table: string; ref_id: string; locator: string | null; note: string | null }
+export type LinkKind = 'tuer' | 'durchgang' | 'treppe' | 'luke' | 'aussen' | 'sonstiges';
+export interface RoomLink extends Stamp {
+  id: string; project_id: string; from_room_id: string; to_room_id: string | null; to_label: string | null;
+  kind: LinkKind; certainty: Certainty; note: string | null;
+}
+
 export interface RowTypes {
   projects: Project; buildings: Building; floors: Floor; rooms: Room; components: Component; circuits: Circuit;
   plan_objects: PlanObject; lines: Line; schematic_pages: SchematicPage; schematic_symbols: SchematicSymbol;
   schematic_wires: SchematicWire; phases: Phase; tasks: Task; task_deps: TaskDep; materials: Material;
   expenses: Expense; documents: DocumentRow; room_variants: RoomVariant;
+  sources: Source; source_refs: SourceRef; room_links: RoomLink;
 }

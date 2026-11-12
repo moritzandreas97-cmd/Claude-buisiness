@@ -75,6 +75,8 @@ export class Tx {
         else this.update(t, (r as unknown as AnyRow).id, { [rel.column]: null } as never);
       }
     }
+    // Generische Quellenverweise auf dieses Objekt mitlöschen (keine verwaisten Belege)
+    if (table !== 'source_refs') for (const r of this.all('source_refs')) if (r.ref_table === table && r.ref_id === id) this.record('source_refs', r.id, r as unknown as AnyRow, null);
     this.record(table, id, cur as unknown as AnyRow, null);
   }
 }

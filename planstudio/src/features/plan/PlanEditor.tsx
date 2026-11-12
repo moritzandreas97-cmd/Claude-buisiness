@@ -106,6 +106,18 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
   const lastTap = useRef<{ t: number; p: Pt }>({ t: 0, p: { x: 0, y: 0 } });
   const fitted = useRef<string | null>(null);
   const palette = theme === 'dark' ? SCREEN_DARK : SCREEN_LIGHT;
+  const bgDocKey = floor?.background ? data.documents[floor.background.document_id]?.storage_key ?? null : null;
+  const [bgUrl, setBgUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let url: string | null = null; let alive = true;
+    setBgUrl(null);
+    if (bgDocKey) void useProject.getState().platform!.files.get(bgDocKey).then((b) => {
+      if (!b || !alive) return;
+      url = URL.createObjectURL(new Blob([b as BlobPart], { type: data.documents[floor!.background!.document_id]?.mime ?? 'image/png' }));
+      setBgUrl(url);
+    });
+    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
+  }, [bgDocKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedIds = useMemo(() => new Set(selection.map((s) => s.id)), [selection]);
   const wallHeight = floor?.height_mm ?? 2500;
 
@@ -121,6 +133,8 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
   const fit = useCallback((roomId?: string | null) => {
     const st = useProject.getState().data;
     let pts = ops.floorPoints(st, floorId);
+    const bgc = st.floors[floorId]?.background;
+    if (bgc?.visible) pts = [...pts, { x: bgc.x, y: bgc.y }, { x: bgc.x + bgc.width_mm, y: bgc.y - bgc.width_mm * 0.6 }];
     const r = roomId ? st.rooms[roomId] : null;
     if (r?.polygon?.length) pts = r.polygon;
     const bb = bboxOf(pts);
@@ -254,9 +268,25 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
     return { wallId: w.id, offset, width, g: w.g, fits: width <= L };
   }, [cursor, tool, wallAt]);
 
+  /** Neuen Raum anlegen oder – falls eine Raumkarte zum Einzeichnen gewählt ist – deren Geometrie setzen. */
+  const createOrPlaceRoom = async (poly: Pt[]) => {
+    const placeId = useUi.getState().placeRoomId;
+    await run(placeId ? 'Raum einzeichnen' : 'Raum anlegen', (tx) => {
+      if (placeId && tx.get('rooms', placeId)) {
+        if (poly.length < 3) throw new ops.GeometryError('Ein Raum benötigt mindestens 3 Eckpunkte.');
+        tx.update('rooms', placeId, { floor_id: floorId });
+        ops.setRoomPolygon(tx, placeId, poly);
+        ui.select([{ table: 'rooms', id: placeId }]);
+        return;
+      }
+      const r = ops.addRoom(tx, floorId, poly); ui.select([{ table: 'rooms', id: r.id }]);
+    });
+    if (placeId) useUi.getState().set({ placeRoomId: null });
+  };
+
   const finishDraft = useCallback(async () => {
     const pts = draft;
-    if (tool === 'room' && pts.length >= 3) await run('Raum anlegen', (tx) => { const r = ops.addRoom(tx, floorId, pts); ui.select([{ table: 'rooms', id: r.id }]); });
+    if (tool === 'room' && pts.length >= 3) await createOrPlaceRoom(pts);
     if (tool === 'line' && pts.length >= 2) {
       const lt = useUi.getState().lineType;
       const lineDef = LINE_TYPES.find((l) => l.type === lt)!;
@@ -309,7 +339,7 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
         if (draft.length === 0) { setDraft([p]); return; }
         const a = draft[0];
         const poly = [a, { x: p.x, y: a.y }, p, { x: a.x, y: p.y }];
-        await run('Raum anlegen', (tx) => { const r = ops.addRoom(tx, floorId, poly); ui.select([{ table: 'rooms', id: r.id }]); });
+        await createOrPlaceRoom(poly);
         setDraft([]);
         return;
       }
@@ -514,7 +544,7 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
   if (!floor) return <div className="p-6 text-muted">Kein Geschoss ausgewählt.</div>;
 
   const renderData = preview?.data ?? data;
-  const opts: RenderOpts = { floorId, view, layers, palette, unit: 1, fontSize: 12, selected: selectedIds, interactive: true, focus: mode === 'architecture' ? null : mode, roomFilter: ui.roomFilter };
+  const opts: RenderOpts = { floorId, view, layers, palette, unit: 1, fontSize: 12, selected: selectedIds, interactive: true, focus: mode === 'architecture' ? null : mode, roomFilter: ui.roomFilter, backgroundUrl: bgUrl };
 
   // Raster
   let gs = grid; while (gs * view.scale < 8) gs *= 10;
@@ -552,6 +582,12 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
       </div>
 
       <div className="relative min-w-0 flex-1">
+        {ui.placeRoomId && data.rooms[ui.placeRoomId] && (
+          <div className="absolute left-1/2 top-14 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-accent bg-panel/95 px-3 py-2 text-sm shadow-xl" data-testid="place-banner">
+            <span>Einzeichnen: <b>{data.rooms[ui.placeRoomId].code ? data.rooms[ui.placeRoomId].code + ' ' : ''}{data.rooms[ui.placeRoomId].name}</b> – Rechteck oder Polygon zeichnen</span>
+            <Button size="sm" onClick={() => ui.set({ placeRoomId: null })}><XIcon size={14} />Abbrechen</Button>
+          </div>
+        )}
         {/* Werkzeugoptionen */}
         {(tool === 'wall' || tool === 'symbol' || tool === 'line' || tool === 'furniture') && (
           <div className="absolute left-2 right-2 top-2 z-10 flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-panel/95 p-1.5 shadow-lg backdrop-blur">
