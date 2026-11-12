@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ScanSearch, PencilRuler, Sofa, Zap, Droplets, Milestone, ListChecks, Package, Euro, Camera, FileBarChart, Settings,
-  Save, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Download, Sun, Moon, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Loader2, AlertTriangle, CheckCircle2,
+  Save, Undo2, Redo2, Menu, MoreVertical, X as XIcon, ZoomIn, ZoomOut, Maximize, Download, Sun, Moon, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Loader2, AlertTriangle, CheckCircle2,
 } from 'lucide-react';
 import { createPlatform } from './lib/platform';
 import { getSetting } from './db/repository';
@@ -9,6 +9,7 @@ import { useProject } from './store/projectStore';
 import { useUi, type ModuleId } from './store/uiStore';
 import { Button, cn } from './ui/primitives';
 import { bus } from './lib/bus';
+import { useIsMobile } from './lib/useMedia';
 import { formatMm } from './model/geometry';
 import { dateTime } from './lib/format';
 import { Dashboard, ProjectGate } from './features/dashboard/Dashboard';
@@ -71,6 +72,9 @@ function Shell() {
   const { project, data, undoStack, redoStack, undo, redo, save } = useProject();
   const floors = Object.values(data.floors).sort((a, b) => a.sort_order - b.sort_order || a.elevation_mm - b.elevation_mm);
   const [exportOpen, setExportOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mobile = useIsMobile();
 
   // Geschoss automatisch wählen
   useEffect(() => {
@@ -97,9 +101,48 @@ function Shell() {
   const lastUndo = undoStack[undoStack.length - 1];
   const lastRedo = redoStack[redoStack.length - 1];
 
+  const go = (id: ModuleId) => { ui.set({ module: id, selection: [] }); if (id === 'plan') ui.setMode('architecture'); if (id === 'room') ui.setMode('interior'); setNavOpen(false); };
+  const exportPlan = async (f: 'pdf' | 'svg') => { setExportOpen(false); setMoreOpen(false); if (ui.floorId) { try { const where = await exportFloorPlan(ui.floorId, f, {}); ui.toast(`Exportiert: ${where}`, 'success'); } catch (e) { ui.toast(String(e), 'error'); } } };
+  const navItems = (labels: boolean) => NAV.map((n) => (
+    <button key={n.id} title={n.label} data-nav={n.id} onClick={() => go(n.id)}
+      className={cn('flex items-center gap-3 rounded-md px-3 text-sm touch-lg', labels && mobile ? 'h-12 text-base' : 'h-10', ui.module === n.id ? 'bg-accent/15 font-medium text-accent' : 'text-muted hover:bg-hover hover:text-fg')}>
+      <span className="shrink-0">{n.icon}</span>{labels && <span className="truncate">{n.label}</span>}
+    </button>
+  ));
+  const floorSelect = (
+    <select aria-label="Geschoss" data-testid="floor-select" className={cn('h-8 rounded-md border border-line bg-panel2 px-2 text-sm', mobile ? 'w-28 shrink-0' : 'max-w-40')} value={ui.floorId ?? ''} onChange={(e) => ui.set({ floorId: e.target.value, selection: [] })}>
+      {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+    </select>
+  );
+  const menuItem = (label: string, icon: React.ReactNode, onClick: () => void, disabled = false) => (
+    <button disabled={disabled} className="flex w-full items-center gap-3 rounded px-3 py-3 text-left text-sm hover:bg-hover disabled:opacity-40" onClick={() => { setMoreOpen(false); onClick(); }}>{icon}{label}</button>
+  );
+
   return (
     <div className="flex h-full flex-col">
       {/* Obere Werkzeugleiste */}
+      {mobile ? (
+        <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-1" data-layout="mobile">
+          <Button variant="ghost" size="icon" aria-label="Menü öffnen" onClick={() => setNavOpen(true)}><Menu size={20} /></Button>
+          <button className="min-w-0 flex-1 truncate text-left text-sm font-semibold" onClick={() => go('dashboard')} data-testid="project-name">{project!.name}</button>
+          {floorSelect}
+          <Button variant="ghost" size="icon" aria-label="Rückgängig" disabled={!lastUndo} onClick={() => void undo()}><Undo2 size={18} /></Button>
+          <Button variant="ghost" size="icon" aria-label="Weitere Funktionen" onClick={() => setMoreOpen(!moreOpen)}><MoreVertical size={18} /></Button>
+          {moreOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+              <div className="fixed right-2 top-12 z-50 w-64 rounded-lg border border-line bg-panel p-1 shadow-2xl" role="menu">
+                {menuItem('Speichern', <Save size={17} />, () => void save().then(() => ui.toast('Projekt gespeichert', 'success')))}
+                {menuItem(lastRedo ? `Wiederholen: ${lastRedo.label}` : 'Wiederholen', <Redo2 size={17} />, () => void redo(), !lastRedo)}
+                {isPlan && menuItem('Gesamtansicht', <Maximize size={17} />, () => bus.emit('zoom-fit'))}
+                {menuItem(ui.theme === 'dark' ? 'Helles Design' : 'Dunkles Design', ui.theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />, () => ui.set({ theme: ui.theme === 'dark' ? 'light' : 'dark' }))}
+                {menuItem('Grundriss als PDF', <Download size={17} />, () => void exportPlan('pdf'))}
+                {menuItem('Weitere Exporte & Backup', <Download size={17} />, () => go('reports'))}
+              </div>
+            </>
+          )}
+        </header>
+      ) : (
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-2">
         <Button variant="ghost" size="icon" aria-label="Navigation ein-/ausklappen" onClick={() => ui.set({ navCollapsed: !ui.navCollapsed })}>{ui.navCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</Button>
         <div className="flex min-w-0 items-center gap-2">
@@ -107,9 +150,7 @@ function Shell() {
           <button className="min-w-0 truncate text-sm font-semibold hover:text-accent" title="Projekt" onClick={() => ui.set({ module: 'dashboard' })} data-testid="project-name">{project!.name}</button>
         </div>
         <div className="mx-1 h-6 w-px bg-line" />
-        <select aria-label="Geschoss" data-testid="floor-select" className="h-8 max-w-40 rounded-md border border-line bg-panel2 px-2 text-sm" value={ui.floorId ?? ''} onChange={(e) => ui.set({ floorId: e.target.value, selection: [] })}>
-          {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
+        {floorSelect}
         {isPlan && <span className="hidden rounded-md bg-accent/15 px-2 py-1 text-xs font-medium text-accent md:inline">{MODE_LABEL[ui.mode]}</span>}
         <div className="flex-1" />
         <Button variant="ghost" size="icon" title="Speichern (Strg+S)" aria-label="Speichern" onClick={() => void save().then(() => ui.toast('Projekt gespeichert', 'success'))}><Save size={17} /></Button>
@@ -128,24 +169,35 @@ function Shell() {
           {exportOpen && (
             <div className="absolute right-0 top-10 z-40 w-56 rounded-lg border border-line bg-panel p-1 shadow-xl" onMouseLeave={() => setExportOpen(false)}>
               {[['pdf', 'Grundriss als PDF'], ['svg', 'Grundriss als SVG']].map(([f, l]) => (
-                <button key={f} className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-hover" onClick={async () => { setExportOpen(false); if (ui.floorId) { try { const where = await exportFloorPlan(ui.floorId, f as 'pdf' | 'svg', {}); ui.toast(`Exportiert: ${where}`, 'success'); } catch (e) { ui.toast(String(e), 'error'); } } }}>{l}</button>
+                <button key={f} className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-hover" onClick={() => void exportPlan(f as 'pdf' | 'svg')}>{l}</button>
               ))}
               <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-hover" onClick={() => { setExportOpen(false); ui.set({ module: 'reports' }); }}>Weitere Exporte & Backup …</button>
             </div>
           )}
         </div>
       </header>
+      )}
 
       <div className="flex min-h-0 flex-1">
-        {/* Linke Navigation */}
-        <nav className={cn('flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel p-1.5', ui.navCollapsed ? 'w-14' : 'w-52')} aria-label="Module">
-          {NAV.map((n) => (
-            <button key={n.id} title={n.label} data-nav={n.id} onClick={() => { ui.set({ module: n.id, selection: [] }); if (n.id === 'plan') ui.setMode('architecture'); if (n.id === 'room') ui.setMode('interior'); }}
-              className={cn('flex h-10 items-center gap-3 rounded-md px-3 text-sm touch-lg', ui.module === n.id ? 'bg-accent/15 font-medium text-accent' : 'text-muted hover:bg-hover hover:text-fg')}>
-              <span className="shrink-0">{n.icon}</span>{!ui.navCollapsed && <span className="truncate">{n.label}</span>}
-            </button>
-          ))}
-        </nav>
+        {/* Linke Navigation (Desktop/Tablet) */}
+        {!mobile && (
+          <nav className={cn('flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel p-1.5', ui.navCollapsed ? 'w-14' : 'w-52')} aria-label="Module">
+            {navItems(!ui.navCollapsed)}
+          </nav>
+        )}
+        {/* Smartphone: ausklappbares Menü */}
+        {mobile && navOpen && (
+          <div className="fixed inset-0 z-50 flex" data-testid="mobile-menu">
+            <nav className="flex w-72 max-w-[85vw] flex-col gap-0.5 overflow-y-auto bg-panel p-2 shadow-2xl" aria-label="Module">
+              <div className="mb-2 flex items-center justify-between px-2 pt-1">
+                <div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-fg">LA</div><span className="text-sm font-semibold">PlanStudio</span></div>
+                <Button variant="ghost" size="icon" aria-label="Menü schließen" onClick={() => setNavOpen(false)}><XIcon size={18} /></Button>
+              </div>
+              {navItems(true)}
+            </nav>
+            <div className="flex-1 bg-black/50" onClick={() => setNavOpen(false)} />
+          </div>
+        )}
 
         <main className="min-w-0 flex-1 overflow-hidden">
           <ModuleView />
@@ -161,7 +213,7 @@ function Shell() {
 function ModuleView() {
   const module = useUi((s) => s.module);
   const floorId = useUi((s) => s.floorId);
-  const scroll = (el: React.ReactNode) => <div className="h-full overflow-auto p-4 md:p-6">{el}</div>;
+  const scroll = (el: React.ReactNode) => <div className="h-full overflow-y-auto overflow-x-hidden p-3 md:p-6">{el}</div>;
   switch (module) {
     case 'dashboard': return scroll(<Dashboard />);
     case 'building': return scroll(<BuildingPage />);
@@ -186,7 +238,7 @@ function StatusBar() {
   const isPlan = PLAN_MODULES.includes(ui.module);
   const TOOL_LABEL: Record<string, string> = { select: 'Auswahl', pan: 'Verschieben', wall: 'Wand', room: 'Raum (Polygon)', room_rect: 'Raum (Rechteck)', door: 'Tür', window: 'Fenster', dimension: 'Maßlinie', measure: 'Messen', symbol: 'Symbol', line: 'Leitung', furniture: 'Möbel', podest: 'Podest', beam: 'Balken', plate: 'Platte' };
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap border-t border-line bg-panel px-3 text-[11px] text-muted tabular [&>*]:shrink-0" data-testid="statusbar">
+    <footer className="hidden h-7 shrink-0 md:flex items-center gap-4 overflow-hidden whitespace-nowrap border-t border-line bg-panel px-3 text-[11px] text-muted tabular [&>*]:shrink-0" data-testid="statusbar">
       {isPlan && <>
         <span title="Cursor (Modellkoordinaten)">X {ui.cursor ? formatMm(ui.cursor.x, 'm') : '–'} · Y {ui.cursor ? formatMm(ui.cursor.y, 'm') : '–'}</span>
         <span className="hidden md:inline">{ui.scaleInfo}</span>
@@ -211,7 +263,7 @@ function StatusBar() {
 function Toasts() {
   const toasts = useUi((s) => s.toasts);
   return (
-    <div className="pointer-events-none fixed bottom-10 right-4 z-[60] flex flex-col gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed bottom-4 left-3 right-3 z-[60] flex flex-col items-end gap-2 md:bottom-10 md:left-auto md:right-4" aria-live="polite">
       {toasts.map((t) => (
         <div key={t.id} role="status" className={cn('pointer-events-auto max-w-sm rounded-lg border px-3 py-2 text-sm shadow-lg', t.kind === 'error' ? 'border-danger/50 bg-panel text-danger' : t.kind === 'success' ? 'border-ok/40 bg-panel' : 'border-line bg-panel')}>{t.text}</div>
       ))}

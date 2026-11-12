@@ -90,10 +90,10 @@ export function Dialog({ open, title, onClose, children, footer, wide }: { open:
 
 export function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange: (v: NoInfer<T>) => void; items: { v: NoInfer<T>; label: string; icon?: ReactNode }[] }) {
   return (
-    <div className="flex gap-1 rounded-lg bg-panel2 p-1" role="tablist">
+    <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-panel2 p-1" role="tablist">
       {items.map((i) => (
         <button key={i.v} role="tab" aria-selected={value === i.v} onClick={() => onChange(i.v)}
-          className={cn('flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium touch-lg', value === i.v ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg')}>
+          className={cn('flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium touch-lg', value === i.v ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg')}>
           {i.icon}{i.label}
         </button>
       ))}
@@ -108,7 +108,7 @@ export function Empty({ children }: { children: ReactNode }) {
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
       </div>

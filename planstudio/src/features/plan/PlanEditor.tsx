@@ -583,14 +583,14 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
 
       <div className="relative min-w-0 flex-1">
         {ui.placeRoomId && data.rooms[ui.placeRoomId] && (
-          <div className="absolute left-1/2 top-14 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-accent bg-panel/95 px-3 py-2 text-sm shadow-xl" data-testid="place-banner">
+          <div className="absolute left-2 right-2 top-14 z-20 flex items-center gap-2 rounded-lg border border-accent bg-panel/95 px-3 py-2 text-sm shadow-xl md:left-1/2 md:right-auto md:-translate-x-1/2" data-testid="place-banner">
             <span>Einzeichnen: <b>{data.rooms[ui.placeRoomId].code ? data.rooms[ui.placeRoomId].code + ' ' : ''}{data.rooms[ui.placeRoomId].name}</b> – Rechteck oder Polygon zeichnen</span>
             <Button size="sm" onClick={() => ui.set({ placeRoomId: null })}><XIcon size={14} />Abbrechen</Button>
           </div>
         )}
         {/* Werkzeugoptionen */}
         {(tool === 'wall' || tool === 'symbol' || tool === 'line' || tool === 'furniture') && (
-          <div className="absolute left-2 right-2 top-2 z-10 flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-panel/95 p-1.5 shadow-lg backdrop-blur">
+          <div className="absolute left-2 right-2 top-2 z-10 flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-lg border border-line bg-panel/95 p-1.5 shadow-lg backdrop-blur md:flex-wrap [&>*]:shrink-0">
             {tool === 'wall' && (
               <>
                 <span className="px-1 text-xs text-muted">Wandstärke</span>
@@ -714,10 +714,10 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
 
         {/* Längeneingabe */}
         {tool === 'wall' && draft.length > 0 && (
-          <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-line bg-panel/95 p-2 shadow-xl backdrop-blur">
+          <div className="absolute bottom-3 left-2 right-2 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel/95 p-2 shadow-xl backdrop-blur md:left-1/2 md:right-auto md:-translate-x-1/2 md:flex-nowrap">
             <span className="text-xs text-muted">Länge</span>
             <input ref={lengthRef} aria-label="Wandlänge" data-testid="wall-length" inputMode="decimal" placeholder="z. B. 3650 / 3,65m"
-              className="h-9 w-36 rounded-md border border-line bg-panel px-2 text-sm outline-none focus:border-accent"
+              className="h-10 min-w-0 flex-1 rounded-md border border-line bg-panel px-2 text-base outline-none focus:border-accent md:h-9 md:w-36 md:flex-none md:text-sm"
               value={lengthInput} onChange={(e) => setLengthInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void applyLength(); } if (e.key === 'Escape') { setLengthInput(''); svgRef.current?.focus(); } }} />
             <Button size="sm" variant="primary" onClick={() => void applyLength()} disabled={!lengthInput}><Check size={14} />Setzen</Button>
@@ -725,7 +725,7 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
           </div>
         )}
         {(tool === 'room' || tool === 'line') && draft.length > 0 && (
-          <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-line bg-panel/95 p-2 shadow-xl">
+          <div className="absolute bottom-3 left-2 right-2 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel/95 p-2 shadow-xl md:left-1/2 md:right-auto md:-translate-x-1/2 md:flex-nowrap">
             <span className="text-xs text-muted">{draft.length} Punkt(e)</span>
             <Button size="sm" variant="primary" onClick={() => void finishDraft()} disabled={draft.length < (tool === 'room' ? 3 : 2)}><Check size={14} />Fertig</Button>
             <Button size="sm" onClick={() => setDraft(draft.slice(0, -1))}>Letzten Punkt entfernen</Button>
@@ -739,7 +739,7 @@ export function PlanEditor({ floorId, focusRoomId }: { floorId: string; focusRoo
           <Button variant="ghost" size="icon" title="Verkleinern" aria-label="Verkleinern" onClick={() => zoomAt({ x: size.w / 2, y: size.h / 2 }, 0.8)}><ZoomOut size={16} /></Button>
           <Button variant="ghost" size="icon" title="Alles zeigen" aria-label="Alles zeigen" onClick={() => fit(focusRoomId)}><Maximize size={16} /></Button>
         </div>
-        <div className="pointer-events-none absolute bottom-3 left-3 z-0 text-[11px] text-muted">{project.name} · {floor.name}</div>
+        <div className="pointer-events-none absolute bottom-3 left-3 z-0 hidden text-[11px] text-muted md:block">{project.name} · {floor.name}</div>
       </div>
     </div>
   );

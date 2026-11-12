@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1] – 2026-11-12 – Smartphone-Ansicht
+
+### Geändert
+- Eigene Ansicht für Bildschirme unter 768 px (Smartphone hochkant): Menü zum Ausklappen statt fester linker Leiste,
+  schlanke Kopfzeile mit Menü „⋮“ (Speichern, Wiederholen, Gesamtansicht, Design, Export), keine Statusleiste.
+- Planungsstudio auf dem Handy: Zeichenfläche in voller Breite, Eigenschaften/unplatzierte Räume als Fenster von unten
+  (öffnet bei Auswahl automatisch), Werkzeug- und Modusleisten einzeilig scrollbar, Längeneingabe in voller Breite.
+- Bestandsaufnahme auf dem Handy: Raumkarten und Verbindungen als Karten statt breiter Tabellen; Reiter scrollbar.
+- Tablet/Desktop unverändert. Test: `tests/e2e/mobile-shots.cjs` (360×800, Touch).
+
 ## [0.2.0] – 2026-11-12 – Bestandsaufnahme / Rekonstruktion
 
 ### Hinzugefügt

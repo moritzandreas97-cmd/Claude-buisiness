@@ -8,6 +8,7 @@ import { CommitInput, trimOrNull } from '../../ui/fields';
 import { CERTAINTY, LINK_KINDS, SOURCE_KINDS, certaintyDef, labelOf } from '../../model/catalog';
 import type { Certainty, LinkKind, Room, SourceKind } from '../../model/types';
 import { CertaintyBadge, CertaintySelect, EvidenceList, SourceIcon } from './Evidence';
+import { useIsMobile } from '../../lib/useMedia';
 
 type Tab = 'overview' | 'sources' | 'rooms' | 'links' | 'graph';
 
@@ -111,6 +112,7 @@ function Sources() {
 function Rooms() {
   const { data } = useProject();
   const ui = useUi();
+  const mobile = useIsMobile();
   const run = useRun();
   const floors = Object.values(data.floors).sort((a, b) => a.sort_order - b.sort_order);
   const [f, setF] = useState({ floor: '', certainty: '', placed: '' });
@@ -139,7 +141,27 @@ function Rooms() {
         <Select aria-label="Filter Status" value={f.certainty} onChange={(e) => setF({ ...f, certainty: e.target.value })}><option value="">Alle Status</option>{CERTAINTY.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</Select>
         <Select aria-label="Filter eingezeichnet" value={f.placed} onChange={(e) => setF({ ...f, placed: e.target.value })}><option value="">eingezeichnet + unplatziert</option><option value="ja">nur eingezeichnet</option><option value="nein">nur unplatziert</option></Select>
       </div>
-      {rooms.length === 0 ? <Empty>Keine Raumkarten.</Empty> : (
+      {rooms.length === 0 ? <Empty>Keine Raumkarten.</Empty> : mobile ? (
+        <ul className="flex flex-col gap-2" data-testid="room-cards">
+          {rooms.map((r) => {
+            const placed = !!(r.polygon && r.polygon.length >= 3);
+            const nref = Object.values(data.source_refs).filter((x) => x.ref_table === 'rooms' && x.ref_id === r.id).length;
+            return (
+              <li key={r.id} className="rounded-xl border border-line bg-panel">
+                <button className="flex w-full flex-col gap-1.5 p-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0"><div className="font-medium">{r.code && <span className="mr-1.5 font-mono text-xs text-muted">{r.code}</span>}{r.name}</div>
+                      <div className="text-xs text-muted">{data.floors[r.floor_id]?.name} · {nref} Quelle(n)</div></div>
+                    {placed ? <Badge tone="ok">eingezeichnet</Badge> : <Badge>unplatziert</Badge>}
+                  </div>
+                  <CertaintyBadge v={r.certainty} />
+                </button>
+                {open === r.id && <div className="border-t border-line p-3">{details(r)}<div className="mt-3"><Button className="w-full" onClick={() => placeAction(r)}><PencilRuler size={14} />{placed ? 'Im Plan zeigen' : 'Im Plan einzeichnen'}</Button></div></div>}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
         <Table head={['ID', 'Raum', 'Geschoss', 'Status', 'Lage', 'Quellen', '']}>
           {rooms.map((r) => {
             const placed = !!(r.polygon && r.polygon.length >= 3);
@@ -153,11 +175,29 @@ function Rooms() {
                 <Td>{placed ? <Badge tone="ok">eingezeichnet</Badge> : <Badge>unplatziert</Badge>}</Td>
                 <Td className="tabular">{nref}</Td>
                 <Td className="whitespace-nowrap text-right" >
-                  <Button size="sm" variant="ghost" title={placed ? 'Im Plan zeigen' : 'Einzeichnen'} onClick={(e) => { e.stopPropagation(); ui.setMode('architecture'); ui.set({ module: 'plan', floorId: r.floor_id, selection: placed ? [{ table: 'rooms', id: r.id }] : [], placeRoomId: placed ? null : r.id }); if (!placed) ui.setTool('room_rect'); }}><PencilRuler size={13} />{placed ? 'Plan' : 'Einzeichnen'}</Button>
+                  <Button size="sm" variant="ghost" title={placed ? 'Im Plan zeigen' : 'Einzeichnen'} onClick={(e) => { e.stopPropagation(); placeAction(r); }}><PencilRuler size={13} />{placed ? 'Plan' : 'Einzeichnen'}</Button>
                 </Td>
               </tr>,
               open === r.id && (
-                <tr key={r.id + '-d'}><td colSpan={7} className="bg-panel2/60 p-3">
+                <tr key={r.id + '-d'}><td colSpan={7} className="bg-panel2/60 p-3">{details(r)}</td></tr>
+              ),
+            ];
+          })}
+        </Table>
+      )}
+    </div>
+  );
+
+  function placeAction(r: Room) {
+    const placed = !!(r.polygon && r.polygon.length >= 3);
+    ui.setMode('architecture');
+    ui.set({ module: 'plan', floorId: r.floor_id, selection: placed ? [{ table: 'rooms', id: r.id }] : [], placeRoomId: placed ? null : r.id });
+    if (!placed) ui.setTool('room_rect');
+  }
+
+  function details(r: Room) {
+    return (
+      <>
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="flex flex-col gap-2">
                       <Field label="Raum-ID"><CommitInput value={r.code} parse={trimOrNull} format={(v) => v ?? ''} onCommit={(v) => run('Raum', (tx) => tx.update('rooms', r.id, { code: v }))} /></Field>
@@ -169,18 +209,14 @@ function Rooms() {
                     <div><div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Quellen</div><EvidenceList table="rooms" id={r.id} /></div>
                   </div>
                   <div className="mt-2 flex justify-end"><Button size="sm" variant="danger" onClick={() => { if (confirm(`Raumkarte „${r.name}“ löschen? (rückgängig möglich)`)) void run('Raum löschen', (tx) => tx.remove('rooms', r.id)); }}><Trash2 size={13} />Löschen</Button></div>
-                </td></tr>
-              ),
-            ];
-          })}
-        </Table>
-      )}
-    </div>
-  );
+      </>
+    );
+  }
 }
 
 function Links() {
   const { data, project } = useProject();
+  const mobile = useIsMobile();
   const run = useRun();
   const rooms = Object.values(data.rooms).sort((a, b) => (data.floors[a.floor_id]?.sort_order ?? 0) - (data.floors[b.floor_id]?.sort_order ?? 0) || roomLabel(a).localeCompare(roomLabel(b), 'de', { numeric: true }));
   const [n, setN] = useState({ from: '', to: '', to_label: '', kind: 'durchgang' as LinkKind, certainty: 'ungeklaert' as Certainty, note: '' });
@@ -206,7 +242,28 @@ function Links() {
           <Button variant="primary" onClick={add}><Plus size={14} />Verbindung</Button>
         </div>
       </Card>
-      {links.length === 0 ? <Empty>Noch keine Verbindungen.</Empty> : (
+      {links.length === 0 ? <Empty>Noch keine Verbindungen.</Empty> : mobile ? (
+        <ul className="flex flex-col gap-2" data-testid="link-cards">
+          {links.map((l) => (
+            <li key={l.id} className="rounded-xl border border-line bg-panel">
+              <button className="flex w-full flex-col gap-1.5 p-3 text-left" onClick={() => setOpen(open === l.id ? null : l.id)}>
+                <div className="text-sm font-medium">{roomLabel(data.rooms[l.from_room_id])}</div>
+                <div className="text-sm">→ {l.to_room_id ? roomLabel(data.rooms[l.to_room_id]) : <i>{l.to_label}</i>}</div>
+                <div className="flex flex-wrap items-center gap-1.5"><Badge>{labelOf(LINK_KINDS, l.kind)}</Badge><CertaintyBadge v={l.certainty} /></div>
+                {l.note && <div className="text-xs text-muted">{l.note}</div>}
+              </button>
+              {open === l.id && (
+                <div className="flex flex-col gap-3 border-t border-line p-3">
+                  <CertaintySelect value={l.certainty} onChange={(v) => run('Status Verbindung', (tx) => tx.update('room_links', l.id, { certainty: v ?? 'ungeklaert' }))} />
+                  <Field label="Notiz"><CommitInput multiline value={l.note} parse={trimOrNull} format={(v) => v ?? ''} onCommit={(v) => run('Verbindung', (tx) => tx.update('room_links', l.id, { note: v }))} /></Field>
+                  <div><div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Quellen (Video + Zeitstempel)</div><EvidenceList table="room_links" id={l.id} /></div>
+                  <Button variant="danger" onClick={() => run('Verbindung löschen', (tx) => tx.remove('room_links', l.id))}><Trash2 size={14} />Löschen</Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
         <Table head={['Von', 'Nach', 'Art', 'Status', 'Notiz', 'Quellen', '']}>
           {links.map((l) => {
             const nref = Object.values(data.source_refs).filter((x) => x.ref_table === 'room_links' && x.ref_id === l.id).length;
