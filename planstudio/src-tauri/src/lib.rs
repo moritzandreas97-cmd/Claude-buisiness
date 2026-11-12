@@ -231,6 +231,24 @@ fn choose_export_dir<R: tauri::Runtime>(app: &tauri::App<R>, data_dir: &Path) ->
         .unwrap_or_else(|| data_dir.join("exports"))
 }
 
+/// Hauptfenster aus der Konfiguration erzeugen. Nur für automatisierte Tests unter Windows:
+/// Ist `PLANSTUDIO_TEST_DEVTOOLS_PORT` gesetzt, öffnet WebView2 einen lokalen DevTools-Port.
+fn create_main_window<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn std::error::Error>> {
+    let cfg = app.config().app.windows.first().cloned().ok_or("Fensterkonfiguration fehlt")?;
+    #[allow(unused_mut)]
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?;
+    #[cfg(windows)]
+    if let Ok(port) = std::env::var("PLANSTUDIO_TEST_DEVTOOLS_PORT") {
+        if port.chars().all(|c| c.is_ascii_digit()) && !port.is_empty() {
+            builder = builder.additional_browser_args(&format!(
+                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+            ));
+        }
+    }
+    builder.build()?;
+    Ok(())
+}
+
 fn open_db(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(err)?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;").map_err(err)?;
@@ -260,6 +278,7 @@ pub fn run() {
                 }
             }
             app.manage(Db(Mutex::new(conn)));
+            create_main_window(app)?;
             app.manage(AppPaths {
                 db_path: db_path.to_string_lossy().into(),
                 data_dir: data_dir.to_string_lossy().into(),

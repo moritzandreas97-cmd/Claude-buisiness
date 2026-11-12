@@ -1,5 +1,5 @@
 /* Test der installierten Windows-App (WebView2) über das DevTools-Protokoll.
- * WebView2 wird über die offizielle Variable WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS mit Remote-Debugging gestartet.
+ * Die App öffnet nur bei gesetzter Variable PLANSTUDIO_TEST_DEVTOOLS_PORT einen lokalen WebView2-DevTools-Port.
  * Aufruf: node tests/e2e/windows-smoke.cjs <pfad\zur\planstudio.exe> [ergebnis-ordner]
  * Prüft: Start, SQLite-Datei, Projekt/Wand/Aufgabe, PDF-Export, Projektbackup, Projektimport (echte Datei),
  *        hartes Beenden (Absturzsimulation) → Integrität der SQLite-Datei, Neustart ohne Datenverlust.
@@ -21,7 +21,7 @@ const sql = (q) => JSON.parse(execFileSync('python', ['-c', 'import sqlite3,json
 let proc, ws, seq = 0;
 const pending = new Map();
 async function launch() {
-  proc = spawn(EXE, [], { env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${PORT}` }, stdio: 'ignore', detached: false });
+  proc = spawn(EXE, [], { env: { ...process.env, PLANSTUDIO_TEST_DEVTOOLS_PORT: String(PORT) }, stdio: 'ignore', detached: false });
   let target;
   for (let i = 0; i < 60 && !target; i++) {
     try { target = (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find((t) => t.type === 'page' && !t.url.startsWith('devtools')); } catch { /* */ }
