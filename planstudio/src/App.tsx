@@ -4,6 +4,7 @@ import {
   Save, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Download, Sun, Moon, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Loader2, AlertTriangle, CheckCircle2,
 } from 'lucide-react';
 import { createPlatform } from './lib/platform';
+import { getSetting } from './db/repository';
 import { useProject } from './store/projectStore';
 import { useUi, type ModuleId } from './store/uiStore';
 import { Button, cn } from './ui/primitives';
@@ -50,7 +51,8 @@ export function App() {
     createPlatform().then(async (p) => {
       await init(p);
       let last: string | null = null;
-      try { last = localStorage.getItem('planstudio.lastProject'); } catch { /* ignore */ }
+      last = await getSetting(p.db, 'lastProject').catch(() => null);
+      if (!last) { try { last = localStorage.getItem('planstudio.lastProject'); } catch { /* ältere Version */ } }
       const s = useProject.getState();
       if (last && s.projects.some((x) => x.id === last)) await s.openProject(last).catch(() => undefined);
     }).catch((e) => useProject.setState({ fatal: String(e) }));

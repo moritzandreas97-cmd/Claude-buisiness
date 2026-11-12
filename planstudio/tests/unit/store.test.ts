@@ -4,7 +4,7 @@ import { useProject } from '../../src/store/projectStore';
 import { SqlJsDriver } from '../../src/db/sqljsDriver';
 import initSqlJs from 'sql.js';
 import { migrate } from '../../src/db/migrate';
-import { loadProjectData } from '../../src/db/repository';
+import { getSetting, loadProjectData } from '../../src/db/repository';
 
 (globalThis as any).localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
@@ -25,6 +25,15 @@ describe('Projekt & Persistenz', () => {
     const d = useProject.getState().data;
     expect(Object.values(d.buildings)).toHaveLength(1);
     expect(Object.values(d.floors)[0].name).toBe('Erdgeschoss');
+  });
+
+  it('merkt das zuletzt geöffnete Projekt dauerhaft in SQLite', async () => {
+    const p = await useProject.getState().createProject('Lebenswerk Adorf');
+    await useProject.getState().openProject(p.id);
+    expect(await getSetting(useProject.getState().platform!.db, 'lastProject')).toBe(p.id);
+    useProject.getState().closeProject();
+    await useProject.getState().save();
+    expect(await getSetting(useProject.getState().platform!.db, 'lastProject')).toBeNull();
   });
 
   it('lehnt leeren Projektnamen ab', async () => {

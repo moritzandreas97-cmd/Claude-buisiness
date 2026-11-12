@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.1] – 2026-11-12 – installierbare Builds für die Zielgeräte
+
+### Hinzugefügt
+- GitHub-Actions-Workflow „PlanStudio Build“: Windows (NSIS/MSI), Linux (deb/AppImage), Android (APK) mit
+  nachvollziehbar benannten Artefakten und automatisierten Tests auf der jeweiligen Plattform
+  (Windows-Installation, Linux-Installation, Android-14-Tablet-Emulator).
+- Android: Exporte und Projektbackups im öffentlichen Ordner `Download/Lebenswerk PlanStudio` (mit Schreibprüfung und Rückfall).
+- `INSTALL.md`: Installation, Signatur/Updates, Datenübertragung zwischen Geräten.
+
+### Geändert
+- Projektimport nutzt ein dauerhaft vorhandenes Dateifeld (Systemdateiauswahl auf allen Plattformen, automatisiert testbar).
+- Hauptfenster wird im Programmcode erzeugt; nur bei gesetzter Variable `PLANSTUDIO_TEST_DEVTOOLS_PORT` (Windows-Tests)
+  öffnet WebView2 einen lokalen DevTools-Port.
+- Planungsmodule unverändert.
+
 ## [0.1.0] – 2026-11-11 – erste nutzbare Version (MVP)
 
 ### Hinzugefügt

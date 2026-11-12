@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Platform } from '../lib/platform';
-import { changesToStatements, emptyProjectData, listProjects, loadProjectData, upsertStatement, type AnyRow, type Change, type ProjectData } from '../db/repository';
+import { changesToStatements, emptyProjectData, listProjects, loadProjectData, setSetting, upsertStatement, type AnyRow, type Change, type ProjectData } from '../db/repository';
 import { migrate } from '../db/migrate';
 import type { Project } from '../model/types';
 import { Tx, applyChanges } from './tx';
@@ -112,13 +112,15 @@ export const useProject = create<ProjectState>((set, get) => ({
     if (!p) throw new Error('Projekt nicht gefunden.');
     const data = await loadProjectData(db, id);
     set({ project: p, data, undoStack: [], redoStack: [], lastError: null });
-    try { localStorage.setItem('planstudio.lastProject', id); } catch { /* ignore */ }
+    // Zuletzt geöffnetes Projekt transaktional in SQLite merken (übersteht auch einen Absturz)
+    await enqueue(() => setSetting(db, 'lastProject', id)).catch(() => undefined);
   },
 
   closeProject() {
     void get().save();
     set({ project: null, data: emptyProjectData(), undoStack: [], redoStack: [] });
-    try { localStorage.removeItem('planstudio.lastProject'); } catch { /* ignore */ }
+    const db = get().platform?.db;
+    if (db) void enqueue(() => setSetting(db, 'lastProject', null)).catch(() => undefined);
   },
 
   async deleteProject(id) {

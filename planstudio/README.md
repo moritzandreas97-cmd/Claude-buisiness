@@ -4,7 +4,8 @@ Lokale, vollständig offline nutzbare Planungssoftware für Gebäude- und Grundr
 (inkl. einfachem Stromlaufplan), Sanitär, Innenausbau, Bauabschnitte/Aufgaben, Material, Kosten,
 Fotodokumentation und Planexport. Ein zentrales Gebäudemodell in SQLite – alle Module arbeiten darauf.
 
-> Status: **Version 0.1 (MVP)**. Details: [`DEVELOPMENT_STATE.md`](DEVELOPMENT_STATE.md), Tests: [`TEST_REPORT.md`](TEST_REPORT.md),
+> Status: **Version 0.1.1**. Installierbare Builds (Windows, Linux, Android) entstehen automatisch in GitHub Actions –
+> Installation auf deinen Geräten: [`INSTALL.md`](INSTALL.md). Details: [`DEVELOPMENT_STATE.md`](DEVELOPMENT_STATE.md), Tests: [`TEST_REPORT.md`](TEST_REPORT.md),
 > Aufbau: [`ARCHITECTURE.md`](ARCHITECTURE.md), Planung: [`ROADMAP.md`](ROADMAP.md).
 
 ## Schnellstart (Linux, bereits gebaut)
@@ -42,7 +43,7 @@ Touch: ein Finger ziehen = verschieben, zwei Finger = Zoom, Tippen = Werkzeug an
 | Datenbank | `~/.local/share/de.lebenswerk.adorf.planstudio/planstudio.sqlite` | `%APPDATA%\de.lebenswerk.adorf.planstudio\planstudio.sqlite` | App-Datenordner (intern) |
 | Fotos/Dokumente | `…/de.lebenswerk.adorf.planstudio/files/projects/<Projekt-ID>/documents/` | `%APPDATA%\de.lebenswerk.adorf.planstudio\files\…` | App-Datenordner |
 | Automatische DB-Sicherungen (bei jedem Start, letzte 10) und manuelle DB-Sicherungen | `…/de.lebenswerk.adorf.planstudio/backups/` | `%APPDATA%\de.lebenswerk.adorf.planstudio\backups\` | App-Datenordner |
-| Exporte (PDF, SVG, CSV, Projektbackups) | `~/Dokumente/Lebenswerk PlanStudio/Exporte/` (ohne Dokumente-Ordner: `~/Lebenswerk PlanStudio/Exporte/`) | `Dokumente\Lebenswerk PlanStudio\Exporte\` | App-Datenordner `exports/` (siehe Einschränkungen) |
+| Exporte (PDF, SVG, CSV, Projektbackups) | `~/Dokumente/Lebenswerk PlanStudio/Exporte/` (ohne Dokumente-Ordner: `~/Lebenswerk PlanStudio/Exporte/`) | `Dokumente\Lebenswerk PlanStudio\Exporte\` | `Download/Lebenswerk PlanStudio/` (Rückfall: `Android/data/de.lebenswerk.adorf.planstudio/files/Download/…`) |
 
 Der tatsächliche Pfad wird unter **Einstellungen → Speicherorte** angezeigt. Exporte überschreiben nie vorhandene Dateien.
 Im reinen Browser-Entwicklungsmodus liegen die Daten in IndexedDB, Exporte werden heruntergeladen.
@@ -72,37 +73,26 @@ npx tauri build --bundles deb,appimage
 # Ergebnis: src-tauri/target/release/bundle/{deb,appimage}/
 ```
 
-### Windows 10/11 – vorbereitet, in dieser Umgebung nicht gebaut
-1. [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) („Desktopentwicklung mit C++“) installieren.
-2. WebView2 ist auf Windows 10/11 meist vorhanden (sonst Evergreen-Installer von Microsoft).
-3. Rust (`rustup-init.exe`, Toolchain `stable-msvc`) und Node.js 22 installieren.
-4. ```powershell
-   cd planstudio
-   npm ci
-   npx tauri build --bundles nsis,msi
-   ```
-   Ergebnis: `src-tauri\target\release\bundle\nsis\*.exe` und `…\msi\*.msi`.
+### Windows 10/11 und Android – über GitHub Actions
+Der Workflow `.github/workflows/planstudio-build.yml` („PlanStudio Build“) baut bei jedem Push auf den Entwicklungszweig
+(Änderungen unter `planstudio/`) oder manuell:
 
-Alternativ: GitHub Actions → Workflow **„PlanStudio Build“** manuell starten (`.github/workflows/planstudio-build.yml`);
-er baut Windows- und Linux-Pakete und stellt sie als Artefakte bereit.
+| Job | Ergebnis | Test auf Zielplattform |
+|---|---|---|
+| `windows` (windows-latest) | NSIS-Setup + MSI | stille Installation, Start der installierten App, Funktionstest über WebView2-DevTools |
+| `linux` (ubuntu-22.04) | .deb + AppImage | Installation des .deb, WebDriver-Test der installierten App |
+| `android` (ubuntu-latest, SDK/NDK des Runners) | signierte Release-APK (arm64, armv7, x86_64) + Debug-APK für Tests | – |
+| `android-test` | – | Android-14-Tablet-Emulator (Pixel C, Querformat), Steuerung per adb + WebView-DevTools |
 
-### Android (Tablet) – vorbereitet, in dieser Umgebung nicht baubar
-Fehlende Voraussetzungen hier: Android SDK, NDK und Build-Tools (Download von `dl.google.com` ist in der
-Entwicklungsumgebung gesperrt). Auf einem Entwicklungsrechner:
-1. Android Studio installieren; im SDK Manager: *Android SDK Platform 34*, *Platform-Tools*, *Build-Tools*,
-   *NDK (Side by side)*, *Command-line Tools*.
-2. Umgebungsvariablen: `JAVA_HOME` (JDK 17, z. B. das von Android Studio), `ANDROID_HOME` (SDK-Pfad), `NDK_HOME` (`$ANDROID_HOME/ndk/<version>`).
-3. Rust-Ziele: `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`
-4. ```bash
-   cd planstudio
-   npm ci
-   npx tauri android init          # erzeugt src-tauri/gen/android (einmalig)
-   npx tauri android dev           # auf angeschlossenem Tablet/Emulator testen
-   npx tauri android build --apk   # Ergebnis: src-tauri/gen/android/app/build/outputs/apk/
-   ```
-   Für die Installation außerhalb des Play Stores das APK signieren (siehe Tauri-Dokumentation „Android Code Signing“).
-Die Oberfläche ist touchfähig (Gesten, große Schaltflächen, einklappbare Seitenleisten, numerische Eingabe);
-**die Android-Version ist jedoch noch nicht auf einem Gerät getestet.**
+Lokaler Windows-Build: Visual Studio C++ Build Tools, Rust (`stable-msvc`), Node 22 → `npm ci && npx tauri build --bundles nsis,msi`.
+
+Lokaler Android-Build: Android Studio (SDK 34, NDK, Build-Tools), `JAVA_HOME` (JDK 17), `ANDROID_HOME`, `NDK_HOME`,
+`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android`, dann
+```bash
+npx tauri android init --ci
+npx tauri android build --apk --target aarch64 armv7 x86_64   # unsigniert → mit apksigner signieren (siehe Workflow)
+```
+`src-tauri/gen/android` wird bei jedem Build neu erzeugt und ist nicht versioniert.
 
 ## Wichtige Hinweise
 * Elektro-/Sanitärfunktionen dienen der Planung und Dokumentation. Es erfolgt **keine** Bemessung oder Prüfung auf
