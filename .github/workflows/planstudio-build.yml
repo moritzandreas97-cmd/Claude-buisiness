@@ -70,17 +70,8 @@ jobs:
           Write-Host "App läuft (PID $($p.Id)), Datenbank angelegt: $data\planstudio.sqlite"
           Stop-Process -Id $p.Id -Force
           Start-Sleep -Seconds 2
-          # Kopie ohne Leerzeichen im Pfad für den WebDriver-Test
-          New-Item -ItemType Directory -Force C:\pstest | Out-Null
-          Copy-Item $env:APP_EXE C:\pstest\planstudio.exe
-      - name: WebDriver-Werkzeuge (tauri-driver, passender msedgedriver)
-        run: |
-          cargo install tauri-driver --locked
-          cargo install --git https://github.com/chippers/msedgedriver-tool
-          cd .. && msedgedriver-tool && ls -la msedgedriver.exe
-      - name: Test der installierten Windows-App (SQLite, Import, Neustart, Export)
-        env: { NATIVE_DRIVER: '${{ github.workspace }}\msedgedriver.exe' }
-        run: node tests/e2e/native-smoke.cjs 'C:\pstest\planstudio.exe' ../out/test-windows
+      - name: Funktionstest der installierten Windows-App (WebView2-DevTools; SQLite, Import, Absturz, Neustart, Export)
+        run: node tests/e2e/windows-smoke.cjs "$APP_EXE" ../out/test-windows
       - uses: actions/upload-artifact@v4
         if: always()
         with:
